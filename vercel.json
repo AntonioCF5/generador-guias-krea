@@ -1,0 +1,22 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "app",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/widget.html" }
+  ],
+  "headers": [
+    {
+      "source": "/widget.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/js/bundle.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    }
+  ]
+}
