@@ -11,6 +11,8 @@ export const DEAL_FIELDS = {
   AMOUNT: "Amount",
   CLOSING_DATE: "Closing_Date",
   MODIFIED_TIME: "Modified_Time",
+  NUMERO_DE_ORDEN: "Numero_de_orden",
+  FECHA_Y_HORA: "Fecha_y_Hora",
 
   // Existing shipping address fields
   CALLE_Y_NUMERO: "Calle_y_Numero",

@@ -2,9 +2,8 @@ import { useMemo } from "react";
 import useDealsList from "../hooks/useDealsList";
 import { DEAL_FIELDS, SHIPMENT_STATUS, SHIPMENT_STATUS_LABELS } from "../utils/constants";
 import {
-  contactNameFromLookup,
-  formatCurrency,
   formatDate,
+  formatDateTime,
   formatStageOrPlaceholder,
   shipmentStatusLabel,
   shipmentStatusModifier,
@@ -104,10 +103,10 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
             <thead>
               <tr>
                 <th>Deal</th>
-                <th>Contacto</th>
+                <th>Número de Orden</th>
                 <th>Etapa</th>
                 <th>Destino</th>
-                <th>Monto</th>
+                <th>Fecha y hora</th>
                 <th>Estatus envío</th>
                 <th>Actualizado</th>
                 <th aria-label="Acciones" />
@@ -136,10 +135,10 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                         </div>
                       )}
                     </td>
-                    <td>{contactNameFromLookup(deal)}</td>
+                    <td>{deal[DEAL_FIELDS.NUMERO_DE_ORDEN] || "—"}</td>
                     <td>{formatStageOrPlaceholder(deal[DEAL_FIELDS.STAGE])}</td>
                     <td>{destino}</td>
-                    <td>{formatCurrency(deal[DEAL_FIELDS.AMOUNT])}</td>
+                    <td>{formatDateTime(deal[DEAL_FIELDS.FECHA_Y_HORA])}</td>
                     <td>
                       <span className={`pill ${shipmentStatusModifier(status)}`}>
                         {shipmentStatusLabel(status)}

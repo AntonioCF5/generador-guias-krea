@@ -25,6 +25,19 @@ export function formatDate(value) {
   });
 }
 
+export function formatDateTime(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-MX", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function formatStageOrPlaceholder(stage) {
   if (!stage) return "—";
   return String(stage);
