@@ -1,0 +1,30 @@
+{
+  "name": "envia-krea-shipping",
+  "version": "1.0.0",
+  "description": "Widget de Zoho CRM para cotizar y generar guías de envío con Envia.com desde un Deal.",
+  "scripts": {
+    "dev": "npx webpack --mode development --watch",
+    "build": "npx webpack --mode production",
+    "start": "node server/index.js",
+    "validate": "npx zet validate",
+    "pack": "npm run build && npx zet pack"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "portfinder": "^1.0.25",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-react": "^7.26.3",
+    "babel-loader": "^9.2.1",
+    "css-loader": "^7.1.2",
+    "selfsigned": "^2.4.1",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.97.0",
+    "webpack-cli": "^6.0.1",
+    "zoho-extension-toolkit": "latest"
+  }
+}

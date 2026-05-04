@@ -1,0 +1,22 @@
+{
+  "service": "CRM",
+  "cspDomains": {
+    "connect-src": [],
+    "img-src": [],
+    "script-src": [],
+    "style-src": [],
+    "font-src": []
+  },
+  "modules": {
+    "widgets": [
+      {
+        "url": "/app/widget.html",
+        "name": "Envia Shipping Labels",
+        "location": "web.tab",
+        "description": "Cotiza envíos y genera guías con Envia.com directamente desde el Deal."
+      }
+    ]
+  },
+  "config": [],
+  "whiteListedDomains": []
+}
