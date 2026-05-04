@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - claude/create-deals-list-view-9WxZx
+      - claude/fervent-goldberg-2AsLZ
   workflow_dispatch:
 
 permissions:
