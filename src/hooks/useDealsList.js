@@ -20,7 +20,7 @@ const COQL_FIELDS = [
 ];
 
 function buildQuery({ search, statusFilter, limit, offset }) {
-  const conditions = [`${DEAL_FIELDS.MODIFIED_TIME} != null`];
+  const conditions = [`${DEAL_FIELDS.MODIFIED_TIME} is not null`];
 
   if (search && search.trim()) {
     const safe = search.trim().replace(/'/g, "\\'");
