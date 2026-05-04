@@ -30,8 +30,8 @@ export const DEAL_FIELDS = {
 
   // NEW Envia shipment metadata
   ENVIA_SHIPMENT_ID: "Envia_Shipment_ID",
-  ENVIA_TRACKING_NUMBER: "Envia_Tracking_Number",
-  ENVIA_CARRIER: "Envia_Carrier",
+  ENVIA_TRACKING_NUMBER: "Numero_de_Guia",
+  ENVIA_CARRIER: "Paqueteria",
   ENVIA_SERVICE: "Envia_Service",
   ENVIA_LABEL_URL: "Envia_Label_URL",
   ENVIA_LABEL_GENERATED_AT: "Envia_Label_Generated_At",
