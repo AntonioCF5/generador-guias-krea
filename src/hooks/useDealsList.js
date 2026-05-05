@@ -19,17 +19,69 @@ const COQL_FIELDS = [
   DEAL_FIELDS.ENVIA_LABEL_URL,
 ];
 
-function buildQuery({ search, statusFilter, limit, offset }) {
+function localTzOffset() {
+  const offsetMin = new Date().getTimezoneOffset();
+  const sign = offsetMin <= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMin);
+  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mm = String(abs % 60).padStart(2, "0");
+  return `${sign}${hh}:${mm}`;
+}
+
+function dayBoundary(dateStr, end = false) {
+  if (!dateStr) return null;
+  const time = end ? "23:59:59" : "00:00:00";
+  return `${dateStr}T${time}${localTzOffset()}`;
+}
+
+function escapeLiteral(value) {
+  return String(value).replace(/'/g, "\\'");
+}
+
+function buildQuery({
+  search,
+  statusFilter,
+  cityFilter,
+  stageFilter,
+  dateFrom,
+  dateTo,
+  limit,
+  offset,
+}) {
   const conditions = [`${DEAL_FIELDS.MODIFIED_TIME} is not null`];
 
   if (search && search.trim()) {
-    const safe = search.trim().replace(/'/g, "\\'");
-    conditions.push(`${DEAL_FIELDS.NAME} like '%${safe}%'`);
+    conditions.push(
+      `${DEAL_FIELDS.NAME} like '%${escapeLiteral(search.trim())}%'`,
+    );
   }
 
   if (statusFilter) {
-    const safe = statusFilter.replace(/'/g, "\\'");
-    conditions.push(`${DEAL_FIELDS.ENVIA_SHIPMENT_STATUS} = '${safe}'`);
+    conditions.push(
+      `${DEAL_FIELDS.ENVIA_SHIPMENT_STATUS} = '${escapeLiteral(statusFilter)}'`,
+    );
+  }
+
+  if (cityFilter && cityFilter.trim()) {
+    conditions.push(
+      `${DEAL_FIELDS.CIUDAD} like '%${escapeLiteral(cityFilter.trim())}%'`,
+    );
+  }
+
+  if (stageFilter && stageFilter.trim()) {
+    conditions.push(
+      `${DEAL_FIELDS.STAGE} like '%${escapeLiteral(stageFilter.trim())}%'`,
+    );
+  }
+
+  const fromIso = dayBoundary(dateFrom, false);
+  if (fromIso) {
+    conditions.push(`${DEAL_FIELDS.FECHA_Y_HORA} >= '${fromIso}'`);
+  }
+
+  const toIso = dayBoundary(dateTo, true);
+  if (toIso) {
+    conditions.push(`${DEAL_FIELDS.FECHA_Y_HORA} <= '${toIso}'`);
   }
 
   return [
@@ -47,44 +99,78 @@ export default function useDealsList() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
-  const fetchPage = useCallback(
-    async ({ search: s, statusFilter: sf, page: p }) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const limit = DEALS_LIST_PAGE_SIZE;
-        const offset = p * limit;
-        const query = buildQuery({
-          search: s,
-          statusFilter: sf,
-          limit: limit + 1,
-          offset,
-        });
-        const rows = await searchDealsByCOQL(query);
-        const trimmed = rows.slice(0, limit);
-        setDeals(trimmed);
-        setHasMore(rows.length > limit);
-      } catch (err) {
-        setError(normalizeError(err, "No se pudieron cargar los deals"));
-        setDeals([]);
-        setHasMore(false);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+  const fetchPage = useCallback(async (params) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const limit = DEALS_LIST_PAGE_SIZE;
+      const offset = params.page * limit;
+      const query = buildQuery({
+        ...params,
+        limit: limit + 1,
+        offset,
+      });
+      const rows = await searchDealsByCOQL(query);
+      const trimmed = rows.slice(0, limit);
+      setDeals(trimmed);
+      setHasMore(rows.length > limit);
+    } catch (err) {
+      setError(normalizeError(err, "No se pudieron cargar los deals"));
+      setDeals([]);
+      setHasMore(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchPage({ search, statusFilter, page });
-  }, [fetchPage, search, statusFilter, page]);
+    fetchPage({
+      search,
+      statusFilter,
+      cityFilter,
+      stageFilter,
+      dateFrom,
+      dateTo,
+      page,
+    });
+  }, [
+    fetchPage,
+    search,
+    statusFilter,
+    cityFilter,
+    stageFilter,
+    dateFrom,
+    dateTo,
+    page,
+  ]);
 
   const reload = useCallback(() => {
-    fetchPage({ search, statusFilter, page });
-  }, [fetchPage, search, statusFilter, page]);
+    fetchPage({
+      search,
+      statusFilter,
+      cityFilter,
+      stageFilter,
+      dateFrom,
+      dateTo,
+      page,
+    });
+  }, [
+    fetchPage,
+    search,
+    statusFilter,
+    cityFilter,
+    stageFilter,
+    dateFrom,
+    dateTo,
+    page,
+  ]);
 
   const applySearch = useCallback((value) => {
     setSearch(value);
@@ -96,16 +182,44 @@ export default function useDealsList() {
     setPage(0);
   }, []);
 
+  const applyCityFilter = useCallback((value) => {
+    setCityFilter(value);
+    setPage(0);
+  }, []);
+
+  const applyStageFilter = useCallback((value) => {
+    setStageFilter(value);
+    setPage(0);
+  }, []);
+
+  const applyDateFrom = useCallback((value) => {
+    setDateFrom(value);
+    setPage(0);
+  }, []);
+
+  const applyDateTo = useCallback((value) => {
+    setDateTo(value);
+    setPage(0);
+  }, []);
+
   return {
     deals,
     loading,
     error,
     search,
     statusFilter,
+    cityFilter,
+    stageFilter,
+    dateFrom,
+    dateTo,
     page,
     hasMore,
     setSearch: applySearch,
     setStatusFilter: applyStatusFilter,
+    setCityFilter: applyCityFilter,
+    setStageFilter: applyStageFilter,
+    setDateFrom: applyDateFrom,
+    setDateTo: applyDateTo,
     setPage,
     reload,
   };

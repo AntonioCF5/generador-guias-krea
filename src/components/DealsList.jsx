@@ -17,6 +17,25 @@ const STATUS_FILTER_OPTIONS = [
   })),
 ];
 
+const UPCOMING_DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfLocalDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function rowDateClass(value, hasLabel) {
+  if (hasLabel || !value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const target = startOfLocalDay(parsed);
+  const today = startOfLocalDay(new Date());
+  const diffDays = Math.round((target - today) / DAY_MS);
+  if (diffDays < 0) return "row--overdue";
+  if (diffDays <= UPCOMING_DAYS) return "row--upcoming";
+  return null;
+}
+
 export default function DealsList({ initialRecordId, onSelectDeal }) {
   const {
     deals,
@@ -24,10 +43,18 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     error,
     search,
     statusFilter,
+    cityFilter,
+    stageFilter,
+    dateFrom,
+    dateTo,
     page,
     hasMore,
     setSearch,
     setStatusFilter,
+    setCityFilter,
+    setStageFilter,
+    setDateFrom,
+    setDateTo,
     setPage,
     reload,
   } = useDealsList();
@@ -58,6 +85,19 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
       withError,
       withLabel,
     };
+  }, [deals]);
+
+  const sortedDeals = useMemo(() => {
+    const priority = (deal) => {
+      const isCancelled =
+        String(deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS] || "").toUpperCase() ===
+        "CANCELLED";
+      const hasLabel = Boolean(deal[DEAL_FIELDS.ENVIA_LABEL_URL]);
+      if (isCancelled) return 1;
+      if (!hasLabel) return 0;
+      return 2;
+    };
+    return [...deals].sort((a, b) => priority(a) - priority(b));
   }, [deals]);
 
   return (
@@ -121,6 +161,40 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
             ))}
           </select>
         </label>
+        <label className="field field--stacked">
+          <span>Ciudad</span>
+          <input
+            type="search"
+            placeholder="Ciudad…"
+            value={cityFilter}
+            onChange={(event) => setCityFilter(event.target.value)}
+          />
+        </label>
+        <label className="field field--stacked">
+          <span>Etapa</span>
+          <input
+            type="search"
+            placeholder="Etapa…"
+            value={stageFilter}
+            onChange={(event) => setStageFilter(event.target.value)}
+          />
+        </label>
+        <label className="field field--stacked">
+          <span>Fecha desde</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+          />
+        </label>
+        <label className="field field--stacked">
+          <span>Fecha hasta</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+          />
+        </label>
       </div>
 
       {error && (
@@ -151,18 +225,26 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
               </tr>
             </thead>
             <tbody>
-              {deals.map((deal) => {
+              {sortedDeals.map((deal) => {
                 const id = deal[DEAL_FIELDS.ID];
                 const isCurrent = id === initialRecordId;
                 const status = deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS];
                 const ciudad = deal[DEAL_FIELDS.CIUDAD];
                 const estado = deal[DEAL_FIELDS.ESTADO];
                 const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
+                const hasLabel = Boolean(deal[DEAL_FIELDS.ENVIA_LABEL_URL]);
+                const dateClass = rowDateClass(
+                  deal[DEAL_FIELDS.FECHA_Y_HORA],
+                  hasLabel,
+                );
+                const rowClass = [
+                  isCurrent ? "is-current" : null,
+                  dateClass,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
                 return (
-                  <tr
-                    key={id}
-                    className={isCurrent ? "is-current" : undefined}
-                  >
+                  <tr key={id} className={rowClass || undefined}>
                     <td>
                       <div className="deals-list__name">
                         {deal[DEAL_FIELDS.NAME] || "(Sin nombre)"}
