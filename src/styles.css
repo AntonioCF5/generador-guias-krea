@@ -1,18 +1,26 @@
 :root {
-  --brand: #1c2a54;
+  --brand: #2563eb;
+  --brand-dark: #1d4ed8;
   --accent: #d4a464;
-  --bg: #f6f7fb;
+  --bg: #f6f8fc;
   --card: #ffffff;
-  --ink: #1a1f2e;
-  --muted: #666a7a;
-  --border: #e3e6ee;
-  --danger: #c0392b;
-  --success: #1f8a5e;
-  --warn: #b47814;
-  --info: #2d6cdf;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --row-hover: #f1f5ff;
+  --row-current: #e0eaff;
+  --th-bg: #f8fafc;
+  --th-ink: #475569;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --success-dark: #15803d;
+  --warn: #ea7c1c;
+  --warn-dark: #c2620e;
+  --info: #2563eb;
+  --info-dark: #1d4ed8;
   --radius: 12px;
   --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(20, 30, 80, 0.06);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 * {
@@ -78,11 +86,22 @@ body {
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  text-decoration: none;
+  line-height: 1.2;
+  transition: transform 0.12s ease, box-shadow 0.15s ease,
+    background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .btn:hover:not(:disabled) {
-  opacity: 0.9;
+  background: var(--brand-dark);
+  border-color: var(--brand-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.10);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn:disabled {
@@ -93,6 +112,43 @@ body {
 .btn--ghost {
   background: transparent;
   color: var(--brand);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--row-hover);
+  color: var(--brand-dark);
+  border-color: var(--brand-dark);
+}
+
+.btn--success {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.btn--success:hover:not(:disabled) {
+  background: var(--success-dark);
+  border-color: var(--success-dark);
+}
+
+.btn--info {
+  background: var(--info);
+  border-color: var(--info);
+}
+
+.btn--info:hover:not(:disabled) {
+  background: var(--info-dark);
+  border-color: var(--info-dark);
+}
+
+.btn--warn {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+
+.btn--warn:hover:not(:disabled) {
+  background: var(--warn-dark);
+  border-color: var(--warn-dark);
 }
 
 .btn--sm {
@@ -134,9 +190,9 @@ body {
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: -1px;
-  border-color: var(--accent);
+  border-color: var(--brand);
 }
 
 .alert {
@@ -227,9 +283,9 @@ body {
 .list__table thead th {
   text-align: left;
   padding: 12px 14px;
-  background: #fafbff;
+  background: var(--th-bg);
   border-bottom: 1px solid var(--border);
-  color: var(--muted);
+  color: var(--th-ink);
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
@@ -240,14 +296,15 @@ body {
 
 .list__table tbody tr {
   border-bottom: 1px solid var(--border);
+  transition: background 0.12s ease;
 }
 
 .list__table tbody tr:hover {
-  background: #f9faff;
+  background: var(--row-hover);
 }
 
 .list__table tbody tr.is-current {
-  background: #eef3ff;
+  background: var(--row-current);
 }
 
 .list__table td {
@@ -281,4 +338,11 @@ body {
 .deals-list__pagination {
   display: flex;
   gap: 8px;
+}
+
+.deals-list__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
 }

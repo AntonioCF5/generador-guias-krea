@@ -145,15 +145,36 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                       </span>
                     </td>
                     <td>{formatDate(deal[DEAL_FIELDS.MODIFIED_TIME])}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn--sm"
-                        onClick={() => onSelectDeal?.(deal)}
-                        disabled={!onSelectDeal}
-                      >
-                        Ver detalle
-                      </button>
+                    <td className="deals-list__actions">
+                      {deal[DEAL_FIELDS.ENVIA_LABEL_URL] ? (
+                        <>
+                          <a
+                            className="btn btn--info btn--sm"
+                            href={deal[DEAL_FIELDS.ENVIA_LABEL_URL]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Ver guía
+                          </a>
+                          <button
+                            type="button"
+                            className="btn btn--warn btn--sm"
+                            onClick={() => onSelectDeal?.(deal)}
+                            disabled={!onSelectDeal}
+                          >
+                            Regenerar
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn--success btn--sm"
+                          onClick={() => onSelectDeal?.(deal)}
+                          disabled={!onSelectDeal}
+                        >
+                          Generar guía
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
