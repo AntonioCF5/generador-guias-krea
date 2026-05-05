@@ -156,6 +156,14 @@ body {
   font-size: 12px;
 }
 
+.btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
 .field {
   display: flex;
   align-items: center;
@@ -296,11 +304,16 @@ body {
 
 .list__table tbody tr {
   border-bottom: 1px solid var(--border);
-  transition: background 0.12s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.list__table tbody tr:last-child {
+  border-bottom: none;
 }
 
 .list__table tbody tr:hover {
   background: var(--row-hover);
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 .list__table tbody tr.is-current {
@@ -342,7 +355,87 @@ body {
 
 .deals-list__actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: flex-end;
   white-space: nowrap;
+}
+
+.deals-list__actions .btn--sm {
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Mini dashboard stat cards */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--brand);
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.stat-card__label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-card__value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.stat-card--brand::before {
+  background: var(--brand);
+}
+
+.stat-card--warn::before {
+  background: var(--warn);
+}
+
+.stat-card--danger::before {
+  background: var(--danger);
+}
+
+.stat-card--success::before {
+  background: var(--success);
 }

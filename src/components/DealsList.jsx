@@ -41,6 +41,25 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     [deals.length, page],
   );
 
+  const stats = useMemo(() => {
+    const isCancelled = (s) => String(s || "").toUpperCase() === "CANCELLED";
+    let withLabel = 0;
+    let withoutLabel = 0;
+    let withError = 0;
+    for (const deal of deals) {
+      const hasLabel = Boolean(deal[DEAL_FIELDS.ENVIA_LABEL_URL]);
+      if (hasLabel) withLabel += 1;
+      else withoutLabel += 1;
+      if (isCancelled(deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS])) withError += 1;
+    }
+    return {
+      total: deals.length,
+      withoutLabel,
+      withError,
+      withLabel,
+    };
+  }, [deals]);
+
   return (
     <div className="deals-list">
       <header className="topbar">
@@ -59,6 +78,25 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
           {loading ? "Actualizando…" : "Actualizar"}
         </button>
       </header>
+
+      <div className="stats-grid" role="group" aria-label="Resumen de envíos">
+        <div className="stat-card stat-card--brand">
+          <span className="stat-card__label">Total de órdenes</span>
+          <span className="stat-card__value">{stats.total}</span>
+        </div>
+        <div className="stat-card stat-card--warn">
+          <span className="stat-card__label">Sin guía</span>
+          <span className="stat-card__value">{stats.withoutLabel}</span>
+        </div>
+        <div className="stat-card stat-card--danger">
+          <span className="stat-card__label">Con error</span>
+          <span className="stat-card__value">{stats.withError}</span>
+        </div>
+        <div className="stat-card stat-card--success">
+          <span className="stat-card__label">Guías generadas</span>
+          <span className="stat-card__value">{stats.withLabel}</span>
+        </div>
+      </div>
 
       <div className="card deals-list__filters">
         <label className="field field--stacked">
@@ -154,6 +192,9 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                             target="_blank"
                             rel="noopener noreferrer"
                           >
+                            <span className="btn__icon" aria-hidden="true">
+                              👁
+                            </span>
                             Ver guía
                           </a>
                           <button
@@ -162,6 +203,9 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                             onClick={() => onSelectDeal?.(deal)}
                             disabled={!onSelectDeal}
                           >
+                            <span className="btn__icon" aria-hidden="true">
+                              🔄
+                            </span>
                             Regenerar
                           </button>
                         </>
@@ -172,6 +216,9 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                           onClick={() => onSelectDeal?.(deal)}
                           disabled={!onSelectDeal}
                         >
+                          <span className="btn__icon" aria-hidden="true">
+                            📦
+                          </span>
                           Generar guía
                         </button>
                       )}

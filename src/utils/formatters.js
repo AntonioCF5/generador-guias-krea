@@ -51,15 +51,15 @@ export function shipmentStatusLabel(status) {
 export function shipmentStatusModifier(status) {
   switch (status) {
     case SHIPMENT_STATUS.GENERATED:
-    case SHIPMENT_STATUS.IN_TRANSIT:
-      return "pill--info";
     case SHIPMENT_STATUS.DELIVERED:
       return "pill--ok";
+    case SHIPMENT_STATUS.IN_TRANSIT:
+      return "pill--info";
     case SHIPMENT_STATUS.CANCELLED:
       return "pill--err";
     case SHIPMENT_STATUS.QUOTED:
-      return "pill--warn";
     case SHIPMENT_STATUS.PENDING:
+      return "pill--warn";
     default:
       return "pill--muted";
   }
