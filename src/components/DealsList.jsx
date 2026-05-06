@@ -37,8 +37,8 @@ function rowDateClass(value, hasGuide) {
   return null;
 }
 
-function formatStat(value, loading) {
-  if (typeof value === "number") return value;
+function formatStat(value, loading, approximate = false) {
+  if (typeof value === "number") return approximate ? `${value}+` : value;
   return loading ? "…" : "—";
 }
 
@@ -126,11 +126,11 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
       <div className="stats-grid" role="group" aria-label="Resumen de envíos">
         <div className="stat-card stat-card--brand">
           <span className="stat-card__label">Total de órdenes</span>
-          <span className="stat-card__value">{formatStat(stats.total, statsLoading)}</span>
+          <span className="stat-card__value">{formatStat(stats.total, statsLoading, stats.approximate)}</span>
         </div>
         <div className="stat-card stat-card--warn">
           <span className="stat-card__label">Sin guía</span>
-          <span className="stat-card__value">{formatStat(stats.withoutGuide, statsLoading)}</span>
+          <span className="stat-card__value">{formatStat(stats.withoutGuide, statsLoading, stats.approximate)}</span>
         </div>
         <div className="stat-card stat-card--danger">
           <span className="stat-card__label">Con error</span>
@@ -138,7 +138,7 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
         </div>
         <div className="stat-card stat-card--success">
           <span className="stat-card__label">Guías generadas</span>
-          <span className="stat-card__value">{formatStat(stats.withGuide, statsLoading)}</span>
+          <span className="stat-card__value">{formatStat(stats.withGuide, statsLoading, stats.approximate)}</span>
         </div>
       </div>
       {statsError && (
