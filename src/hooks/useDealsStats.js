@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { coqlCount, normalizeError } from "../utils/zohoApi";
-import { DEAL_FIELDS, MODULES, SHIPMENT_STATUS } from "../utils/constants";
+import { DEAL_FIELDS, MODULES } from "../utils/constants";
 
 const EMPTY_STATS = {
   total: null,
@@ -9,15 +9,11 @@ const EMPTY_STATS = {
   withGuide: null,
 };
 
-const NOT_CANCELLED = `(${DEAL_FIELDS.ENVIA_SHIPMENT_STATUS} is null OR ${DEAL_FIELDS.ENVIA_SHIPMENT_STATUS} != '${SHIPMENT_STATUS.CANCELLED}')`;
-const HAS_GUIDE = `(${DEAL_FIELDS.ENVIA_LABEL_URL} is not null OR ${DEAL_FIELDS.ENVIA_TRACKING_NUMBER} is not null)`;
-const NO_GUIDE = `(${DEAL_FIELDS.ENVIA_LABEL_URL} is null AND ${DEAL_FIELDS.ENVIA_TRACKING_NUMBER} is null)`;
-
 const QUERIES = {
-  total: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE ${DEAL_FIELDS.MODIFIED_TIME} is not null`,
-  withoutGuide: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE ${NO_GUIDE} AND ${NOT_CANCELLED}`,
-  withError: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE ${DEAL_FIELDS.ENVIA_SHIPMENT_STATUS} = '${SHIPMENT_STATUS.CANCELLED}'`,
-  withGuide: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE ${HAS_GUIDE} AND ${NOT_CANCELLED}`,
+  total: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE id is not null`,
+  withoutGuide: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE ${DEAL_FIELDS.ENVIA_TRACKING_NUMBER} is null`,
+  withError: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE ${DEAL_FIELDS.ENVIA_SHIPMENT_STATUS} = 'CANCELLED'`,
+  withGuide: `SELECT COUNT(id) FROM ${MODULES.DEALS} WHERE ${DEAL_FIELDS.ENVIA_TRACKING_NUMBER} is not null`,
 };
 
 export default function useDealsStats() {
