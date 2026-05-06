@@ -24,8 +24,8 @@ function startOfLocalDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
-function rowDateClass(value, hasLabel) {
-  if (hasLabel || !value) return null;
+function rowDateClass(value, hasGuide) {
+  if (hasGuide || !value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   const target = startOfLocalDay(parsed);
@@ -34,6 +34,13 @@ function rowDateClass(value, hasLabel) {
   if (diffDays < 0) return "row--overdue";
   if (diffDays <= UPCOMING_DAYS) return "row--upcoming";
   return null;
+}
+
+function dealHasGuide(deal) {
+  return Boolean(
+    deal[DEAL_FIELDS.ENVIA_LABEL_URL] ||
+      deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER],
+  );
 }
 
 export default function DealsList({ initialRecordId, onSelectDeal }) {
@@ -74,8 +81,8 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     let withoutLabel = 0;
     let withError = 0;
     for (const deal of deals) {
-      const hasLabel = Boolean(deal[DEAL_FIELDS.ENVIA_LABEL_URL]);
-      if (hasLabel) withLabel += 1;
+      const hasGuide = dealHasGuide(deal);
+      if (hasGuide) withLabel += 1;
       else withoutLabel += 1;
       if (isCancelled(deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS])) withError += 1;
     }
@@ -92,9 +99,9 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
       const isCancelled =
         String(deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS] || "").toUpperCase() ===
         "CANCELLED";
-      const hasLabel = Boolean(deal[DEAL_FIELDS.ENVIA_LABEL_URL]);
+      const hasGuide = dealHasGuide(deal);
       if (isCancelled) return 1;
-      if (!hasLabel) return 0;
+      if (!hasGuide) return 0;
       return 2;
     };
     return [...deals].sort((a, b) => priority(a) - priority(b));
@@ -232,10 +239,10 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                 const ciudad = deal[DEAL_FIELDS.CIUDAD];
                 const estado = deal[DEAL_FIELDS.ESTADO];
                 const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
-                const hasLabel = Boolean(deal[DEAL_FIELDS.ENVIA_LABEL_URL]);
+                const hasGuide = dealHasGuide(deal);
                 const dateClass = rowDateClass(
                   deal[DEAL_FIELDS.FECHA_Y_HORA],
-                  hasLabel,
+                  hasGuide,
                 );
                 const rowClass = [
                   isCurrent ? "is-current" : null,
@@ -266,19 +273,21 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                     </td>
                     <td>{formatDate(deal[DEAL_FIELDS.MODIFIED_TIME])}</td>
                     <td className="deals-list__actions">
-                      {deal[DEAL_FIELDS.ENVIA_LABEL_URL] ? (
+                      {hasGuide ? (
                         <>
-                          <a
-                            className="btn btn--info btn--sm"
-                            href={deal[DEAL_FIELDS.ENVIA_LABEL_URL]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <span className="btn__icon" aria-hidden="true">
-                              👁
-                            </span>
-                            Ver guía
-                          </a>
+                          {deal[DEAL_FIELDS.ENVIA_LABEL_URL] && (
+                            <a
+                              className="btn btn--info btn--sm"
+                              href={deal[DEAL_FIELDS.ENVIA_LABEL_URL]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <span className="btn__icon" aria-hidden="true">
+                                👁
+                              </span>
+                              Ver guía
+                            </a>
+                          )}
                           <button
                             type="button"
                             className="btn btn--warn btn--sm"
