@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import useDealsList from "../hooks/useDealsList";
+import useDealsStats from "../hooks/useDealsStats";
 import { DEAL_FIELDS, SHIPMENT_STATUS, SHIPMENT_STATUS_LABELS } from "../utils/constants";
 import {
   formatDate,
@@ -34,6 +35,11 @@ function rowDateClass(value, hasGuide) {
   if (diffDays < 0) return "row--overdue";
   if (diffDays <= UPCOMING_DAYS) return "row--upcoming";
   return null;
+}
+
+function formatStat(value, loading) {
+  if (typeof value === "number") return value;
+  return loading ? "…" : "—";
 }
 
 function dealHasGuide(deal) {
@@ -75,24 +81,12 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     [deals.length, page],
   );
 
-  const stats = useMemo(() => {
-    const isCancelled = (s) => String(s || "").toUpperCase() === "CANCELLED";
-    let withLabel = 0;
-    let withoutLabel = 0;
-    let withError = 0;
-    for (const deal of deals) {
-      const hasGuide = dealHasGuide(deal);
-      if (hasGuide) withLabel += 1;
-      else withoutLabel += 1;
-      if (isCancelled(deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS])) withError += 1;
-    }
-    return {
-      total: deals.length,
-      withoutLabel,
-      withError,
-      withLabel,
-    };
-  }, [deals]);
+  const {
+    stats,
+    loading: statsLoading,
+    error: statsError,
+    reload: reloadStats,
+  } = useDealsStats();
 
   const sortedDeals = useMemo(() => {
     const priority = (deal) => {
@@ -119,31 +113,39 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
         <button
           type="button"
           className="btn btn--ghost btn--sm"
-          onClick={reload}
-          disabled={loading}
+          onClick={() => {
+            reload();
+            reloadStats();
+          }}
+          disabled={loading || statsLoading}
         >
-          {loading ? "Actualizando…" : "Actualizar"}
+          {loading || statsLoading ? "Actualizando…" : "Actualizar"}
         </button>
       </header>
 
       <div className="stats-grid" role="group" aria-label="Resumen de envíos">
         <div className="stat-card stat-card--brand">
           <span className="stat-card__label">Total de órdenes</span>
-          <span className="stat-card__value">{stats.total}</span>
+          <span className="stat-card__value">{formatStat(stats.total, statsLoading)}</span>
         </div>
         <div className="stat-card stat-card--warn">
           <span className="stat-card__label">Sin guía</span>
-          <span className="stat-card__value">{stats.withoutLabel}</span>
+          <span className="stat-card__value">{formatStat(stats.withoutGuide, statsLoading)}</span>
         </div>
         <div className="stat-card stat-card--danger">
           <span className="stat-card__label">Con error</span>
-          <span className="stat-card__value">{stats.withError}</span>
+          <span className="stat-card__value">{formatStat(stats.withError, statsLoading)}</span>
         </div>
         <div className="stat-card stat-card--success">
           <span className="stat-card__label">Guías generadas</span>
-          <span className="stat-card__value">{stats.withLabel}</span>
+          <span className="stat-card__value">{formatStat(stats.withGuide, statsLoading)}</span>
         </div>
       </div>
+      {statsError && (
+        <div className="alert alert--err" role="alert">
+          {statsError.message}
+        </div>
+      )}
 
       <div className="card deals-list__filters">
         <label className="field field--stacked">

@@ -28,6 +28,19 @@ export async function searchDealsByCOQL(selectQuery) {
   return res?.data ?? [];
 }
 
+export async function coqlCount(selectQuery) {
+  const res = await ZOHO.CRM.API.coql({ select_query: selectQuery });
+  const row = res?.data?.[0];
+  if (!row) return 0;
+  const direct =
+    row.count ?? row.Count ?? row["COUNT(id)"] ?? row.aggregate?.Count;
+  if (typeof direct === "number") return direct;
+  for (const value of Object.values(row)) {
+    if (typeof value === "number") return value;
+  }
+  return 0;
+}
+
 export async function executeFunction(funcName, args = {}) {
   return ZOHO.CRM.FUNCTIONS.execute(funcName, { arguments: JSON.stringify(args) });
 }
