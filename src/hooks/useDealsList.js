@@ -50,9 +50,18 @@ function buildQuery({
   const conditions = [`${DEAL_FIELDS.MODIFIED_TIME} is not null`];
 
   if (search && search.trim()) {
-    conditions.push(
-      `${DEAL_FIELDS.NAME} like '%${escapeLiteral(search.trim())}%'`,
-    );
+    const safe = escapeLiteral(search.trim());
+    const orFields = [
+      DEAL_FIELDS.NAME,
+      DEAL_FIELDS.NUMERO_DE_ORDEN,
+      DEAL_FIELDS.CIUDAD,
+      DEAL_FIELDS.ENVIA_TRACKING_NUMBER,
+      DEAL_FIELDS.STAGE,
+    ];
+    const orClause = orFields
+      .map((field) => `${field} like '%${safe}%'`)
+      .join(" OR ");
+    conditions.push(`(${orClause})`);
   }
 
   if (statusFilter) {
