@@ -84,8 +84,11 @@ function buildQuery({
   ].join(" ");
 }
 
+const COQL_FETCH_PAGE_SIZE = 200;
+const COQL_MAX_RECORDS = 2000;
+
 export default function useDealsList() {
-  const [deals, setDeals] = useState([]);
+  const [allDeals, setAllDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -94,27 +97,27 @@ export default function useDealsList() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
 
-  const fetchPage = useCallback(async (params) => {
+  const fetchAll = useCallback(async (params) => {
     setLoading(true);
     setError(null);
     try {
-      const limit = DEALS_LIST_PAGE_SIZE;
-      const offset = params.page * limit;
-      const query = buildQuery({
-        ...params,
-        limit: limit + 1,
-        offset,
-      });
-      console.log("[DealsList] COQL query:", query);
-      const rows = await searchDealsByCOQL(query);
-      const trimmed = rows.slice(0, limit);
-      setDeals(trimmed);
-      setHasMore(rows.length > limit);
+      const collected = [];
+      let offset = 0;
+      while (offset < COQL_MAX_RECORDS) {
+        const remaining = COQL_MAX_RECORDS - offset;
+        const limit = Math.min(COQL_FETCH_PAGE_SIZE, remaining);
+        const query = buildQuery({ ...params, limit, offset });
+        console.log("[DealsList] COQL query:", query);
+        const rows = await searchDealsByCOQL(query);
+        collected.push(...rows);
+        if (rows.length < limit) break;
+        offset += rows.length;
+      }
+      setAllDeals(collected);
       // TEMP: shipment-status values diagnostic. Remove after SHIPMENT_STATUS is aligned.
       const seenStatuses = new Set();
-      for (const deal of trimmed) {
+      for (const deal of collected) {
         const status = deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS];
         if (status != null) seenStatuses.add(status);
       }
@@ -139,55 +142,34 @@ export default function useDealsList() {
     } catch (err) {
       console.error("[DealsList] Query failed:", err);
       setError(normalizeError(err, "No se pudieron cargar los deals"));
-      setDeals([]);
-      setHasMore(false);
+      setAllDeals([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchPage({
+    fetchAll({
       statusFilter,
       stageFilter,
       dateFrom,
       dateTo,
-      page,
     });
-  }, [
-    fetchPage,
-    statusFilter,
-    stageFilter,
-    dateFrom,
-    dateTo,
-    page,
-  ]);
+  }, [fetchAll, statusFilter, stageFilter, dateFrom, dateTo]);
 
   const reload = useCallback(() => {
-    fetchPage({
+    fetchAll({
       statusFilter,
       stageFilter,
       dateFrom,
       dateTo,
-      page,
     });
-  }, [
-    fetchPage,
-    statusFilter,
-    stageFilter,
-    dateFrom,
-    dateTo,
-    page,
-  ]);
-
-  const applySearch = useCallback((value) => {
-    setSearch(value);
-  }, []);
+  }, [fetchAll, statusFilter, stageFilter, dateFrom, dateTo]);
 
   const filteredDeals = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return deals;
-    return deals.filter((deal) => {
+    if (!term) return allDeals;
+    return allDeals.filter((deal) => {
       const candidates = [
         deal[DEAL_FIELDS.NAME],
         deal[DEAL_FIELDS.NUMERO_DE_ORDEN],
@@ -201,7 +183,22 @@ export default function useDealsList() {
         (value) => value && String(value).toLowerCase().includes(term),
       );
     });
-  }, [deals, search]);
+  }, [allDeals, search]);
+
+  const pagedDeals = useMemo(() => {
+    const start = page * DEALS_LIST_PAGE_SIZE;
+    return filteredDeals.slice(start, start + DEALS_LIST_PAGE_SIZE);
+  }, [filteredDeals, page]);
+
+  const hasMore = useMemo(
+    () => filteredDeals.length > (page + 1) * DEALS_LIST_PAGE_SIZE,
+    [filteredDeals.length, page],
+  );
+
+  const applySearch = useCallback((value) => {
+    setSearch(value);
+    setPage(0);
+  }, []);
 
   const applyStatusFilter = useCallback((value) => {
     setStatusFilter(value);
@@ -224,7 +221,8 @@ export default function useDealsList() {
   }, []);
 
   return {
-    deals: filteredDeals,
+    deals: pagedDeals,
+    totalCount: filteredDeals.length,
     loading,
     error,
     search,

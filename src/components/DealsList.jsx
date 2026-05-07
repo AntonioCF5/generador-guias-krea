@@ -62,6 +62,7 @@ function dealHasGuide(deal) {
 export default function DealsList({ initialRecordId, onSelectDeal }) {
   const {
     deals,
+    totalCount,
     loading,
     error,
     search,
@@ -331,7 +332,7 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
         <span className="deals-list__count">
           {deals.length === 0
             ? "Sin resultados"
-            : `Mostrando ${showingFrom}–${showingTo}`}
+            : `Mostrando ${showingFrom}–${showingTo} de ${totalCount}`}
         </span>
         <div className="deals-list__pagination">
           <button
