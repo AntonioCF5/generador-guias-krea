@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { searchDealsByCOQL, normalizeError } from "../utils/zohoApi";
 import {
   DEAL_FIELDS,
-  DEAL_STAGES,
   DEALS_LIST_PAGE_SIZE,
   MODULES,
+  SHIPMENT_STATUS,
 } from "../utils/constants";
 
 const COQL_FIELDS = [
@@ -127,23 +127,28 @@ export default function useDealsList() {
       const trimmed = rows.slice(0, limit);
       setDeals(trimmed);
       setHasMore(rows.length > limit);
-      // TEMP: stage values diagnostic. Remove after DEAL_STAGES is aligned.
-      const seenStages = new Set();
+      // TEMP: shipment-status values diagnostic. Remove after SHIPMENT_STATUS is aligned.
+      const seenStatuses = new Set();
       for (const deal of trimmed) {
-        const stage = deal[DEAL_FIELDS.STAGE];
-        if (stage != null) seenStages.add(stage);
+        const status = deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS];
+        if (status != null) seenStatuses.add(status);
       }
-      const known = new Set(DEAL_STAGES);
-      const unknown = [...seenStages].filter((s) => !known.has(s));
-      console.log("[DealsList] Stage values seen:", [...seenStages]);
-      console.log(
-        "[DealsList] Stage chars (JSON):",
-        [...seenStages].map((s) => JSON.stringify(s)),
+      const knownStatuses = new Set(Object.values(SHIPMENT_STATUS));
+      const unknownStatuses = [...seenStatuses].filter(
+        (s) => !knownStatuses.has(s),
       );
-      if (unknown.length) {
+      console.log(
+        "[DealsList] Shipment status values seen:",
+        [...seenStatuses],
+      );
+      console.log(
+        "[DealsList] Shipment status chars (JSON):",
+        [...seenStatuses].map((s) => JSON.stringify(s)),
+      );
+      if (unknownStatuses.length) {
         console.warn(
-          "[DealsList] Stages not present in DEAL_STAGES:",
-          unknown.map((s) => JSON.stringify(s)),
+          "[DealsList] Shipment statuses not present in SHIPMENT_STATUS:",
+          unknownStatuses.map((s) => JSON.stringify(s)),
         );
       }
     } catch (err) {
