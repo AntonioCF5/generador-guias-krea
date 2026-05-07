@@ -24,21 +24,6 @@ const COQL_FIELDS = [
   DEAL_FIELDS.ENVIA_LABEL_URL,
 ];
 
-function localTzOffset() {
-  const offsetMin = new Date().getTimezoneOffset();
-  const sign = offsetMin <= 0 ? "+" : "-";
-  const abs = Math.abs(offsetMin);
-  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
-  const mm = String(abs % 60).padStart(2, "0");
-  return `${sign}${hh}:${mm}`;
-}
-
-function dayBoundary(dateStr, end = false) {
-  if (!dateStr) return null;
-  const time = end ? "23:59:59" : "00:00:00";
-  return `${dateStr}T${time}${localTzOffset()}`;
-}
-
 function escapeLiteral(value) {
   return String(value).replace(/'/g, "\\'");
 }
@@ -46,8 +31,6 @@ function escapeLiteral(value) {
 function buildQuery({
   statusFilter,
   stageFilter,
-  dateFrom,
-  dateTo,
   limit,
   offset,
 }) {
@@ -63,16 +46,6 @@ function buildQuery({
     conditions.push(
       `${DEAL_FIELDS.STAGE} = '${escapeLiteral(stageFilter)}'`,
     );
-  }
-
-  const fromIso = dayBoundary(dateFrom, false);
-  if (fromIso) {
-    conditions.push(`${DEAL_FIELDS.FECHA_Y_HORA} >= '${fromIso}'`);
-  }
-
-  const toIso = dayBoundary(dateTo, true);
-  if (toIso) {
-    conditions.push(`${DEAL_FIELDS.FECHA_Y_HORA} <= '${toIso}'`);
   }
 
   return [
@@ -149,41 +122,49 @@ export default function useDealsList() {
   }, []);
 
   useEffect(() => {
-    fetchAll({
-      statusFilter,
-      stageFilter,
-      dateFrom,
-      dateTo,
-    });
-  }, [fetchAll, statusFilter, stageFilter, dateFrom, dateTo]);
+    fetchAll({ statusFilter, stageFilter });
+  }, [fetchAll, statusFilter, stageFilter]);
 
   const reload = useCallback(() => {
-    fetchAll({
-      statusFilter,
-      stageFilter,
-      dateFrom,
-      dateTo,
-    });
-  }, [fetchAll, statusFilter, stageFilter, dateFrom, dateTo]);
+    fetchAll({ statusFilter, stageFilter });
+  }, [fetchAll, statusFilter, stageFilter]);
 
   const filteredDeals = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return allDeals;
+    const fromMs = dateFrom
+      ? new Date(`${dateFrom}T00:00:00`).getTime()
+      : null;
+    const toMs = dateTo
+      ? new Date(`${dateTo}T23:59:59.999`).getTime()
+      : null;
+    if (!term && fromMs == null && toMs == null) return allDeals;
     return allDeals.filter((deal) => {
-      const candidates = [
-        deal[DEAL_FIELDS.NAME],
-        deal[DEAL_FIELDS.NUMERO_DE_ORDEN],
-        deal[DEAL_FIELDS.CIUDAD],
-        deal[DEAL_FIELDS.ESTADO],
-        deal[DEAL_FIELDS.STAGE],
-        deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER],
-        deal[DEAL_FIELDS.ENVIA_CARRIER],
-      ];
-      return candidates.some(
-        (value) => value && String(value).toLowerCase().includes(term),
-      );
+      if (term) {
+        const candidates = [
+          deal[DEAL_FIELDS.NAME],
+          deal[DEAL_FIELDS.NUMERO_DE_ORDEN],
+          deal[DEAL_FIELDS.CIUDAD],
+          deal[DEAL_FIELDS.ESTADO],
+          deal[DEAL_FIELDS.STAGE],
+          deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER],
+          deal[DEAL_FIELDS.ENVIA_CARRIER],
+        ];
+        const matches = candidates.some(
+          (value) => value && String(value).toLowerCase().includes(term),
+        );
+        if (!matches) return false;
+      }
+      if (fromMs != null || toMs != null) {
+        const value = deal[DEAL_FIELDS.FECHA_Y_HORA];
+        if (!value) return false;
+        const t = new Date(value).getTime();
+        if (Number.isNaN(t)) return false;
+        if (fromMs != null && t < fromMs) return false;
+        if (toMs != null && t > toMs) return false;
+      }
+      return true;
     });
-  }, [allDeals, search]);
+  }, [allDeals, search, dateFrom, dateTo]);
 
   const pagedDeals = useMemo(() => {
     const start = page * DEALS_LIST_PAGE_SIZE;
