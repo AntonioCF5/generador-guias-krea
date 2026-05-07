@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { searchDealsByCOQL, normalizeError } from "../utils/zohoApi";
-import { DEAL_FIELDS, DEALS_LIST_PAGE_SIZE, MODULES } from "../utils/constants";
+import {
+  DEAL_FIELDS,
+  DEAL_STAGES,
+  DEALS_LIST_PAGE_SIZE,
+  MODULES,
+} from "../utils/constants";
 
 const COQL_FIELDS = [
   DEAL_FIELDS.ID,
@@ -122,6 +127,25 @@ export default function useDealsList() {
       const trimmed = rows.slice(0, limit);
       setDeals(trimmed);
       setHasMore(rows.length > limit);
+      // TEMP: stage values diagnostic. Remove after DEAL_STAGES is aligned.
+      const seenStages = new Set();
+      for (const deal of trimmed) {
+        const stage = deal[DEAL_FIELDS.STAGE];
+        if (stage != null) seenStages.add(stage);
+      }
+      const known = new Set(DEAL_STAGES);
+      const unknown = [...seenStages].filter((s) => !known.has(s));
+      console.log("[DealsList] Stage values seen:", [...seenStages]);
+      console.log(
+        "[DealsList] Stage chars (JSON):",
+        [...seenStages].map((s) => JSON.stringify(s)),
+      );
+      if (unknown.length) {
+        console.warn(
+          "[DealsList] Stages not present in DEAL_STAGES:",
+          unknown.map((s) => JSON.stringify(s)),
+        );
+      }
     } catch (err) {
       setError(normalizeError(err, "No se pudieron cargar los deals"));
       setDeals([]);
