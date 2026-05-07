@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { searchDealsByCOQL, normalizeError } from "../utils/zohoApi";
 import {
   DEAL_FIELDS,
+  DEAL_STAGES,
   DEALS_LIST_PAGE_SIZE,
+  ESTADOS_MEXICO,
   MODULES,
   SHIPMENT_STATUS,
 } from "../utils/constants";
@@ -55,18 +57,40 @@ function buildQuery({
   const conditions = [`${DEAL_FIELDS.MODIFIED_TIME} is not null`];
 
   if (search && search.trim()) {
-    const safe = escapeLiteral(search.trim());
-    const orFields = [
+    const raw = search.trim();
+    const safe = escapeLiteral(raw);
+    const lower = raw.toLowerCase();
+    const likeFields = [
       DEAL_FIELDS.NAME,
       DEAL_FIELDS.NUMERO_DE_ORDEN,
       DEAL_FIELDS.CIUDAD,
       DEAL_FIELDS.ENVIA_TRACKING_NUMBER,
-      DEAL_FIELDS.STAGE,
     ];
-    const orClause = orFields
-      .map((field) => `${field} like '%${safe}%'`)
-      .join(" OR ");
-    conditions.push(`(${orClause})`);
+    const orClauses = likeFields.map(
+      (field) => `${field} like '%${safe}%'`,
+    );
+
+    const matchingStages = DEAL_STAGES.filter((stage) =>
+      stage.toLowerCase().includes(lower),
+    );
+    if (matchingStages.length) {
+      const list = matchingStages
+        .map((s) => `'${escapeLiteral(s)}'`)
+        .join(", ");
+      orClauses.push(`${DEAL_FIELDS.STAGE} in (${list})`);
+    }
+
+    const matchingStates = ESTADOS_MEXICO.filter((state) =>
+      state.toLowerCase().includes(lower),
+    );
+    if (matchingStates.length) {
+      const list = matchingStates
+        .map((s) => `'${escapeLiteral(s)}'`)
+        .join(", ");
+      orClauses.push(`${DEAL_FIELDS.ESTADO} in (${list})`);
+    }
+
+    conditions.push(`(${orClauses.join(" OR ")})`);
   }
 
   if (statusFilter) {
