@@ -147,6 +147,7 @@ export default function useDealsList() {
         limit: limit + 1,
         offset,
       });
+      console.log("[DealsList] COQL query:", query);
       const rows = await searchDealsByCOQL(query);
       const trimmed = rows.slice(0, limit);
       setDeals(trimmed);
@@ -176,6 +177,7 @@ export default function useDealsList() {
         );
       }
     } catch (err) {
+      console.error("[DealsList] Query failed:", err);
       setError(normalizeError(err, "No se pudieron cargar los deals"));
       setDeals([]);
       setHasMore(false);
