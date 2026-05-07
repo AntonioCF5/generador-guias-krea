@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { searchDealsByCOQL, normalizeError } from "../utils/zohoApi";
 import {
   DEAL_FIELDS,
-  DEAL_STAGES,
   DEALS_LIST_PAGE_SIZE,
-  ESTADOS_MEXICO,
   MODULES,
   SHIPMENT_STATUS,
 } from "../utils/constants";
@@ -46,7 +44,6 @@ function escapeLiteral(value) {
 }
 
 function buildQuery({
-  search,
   statusFilter,
   stageFilter,
   dateFrom,
@@ -55,43 +52,6 @@ function buildQuery({
   offset,
 }) {
   const conditions = [`${DEAL_FIELDS.MODIFIED_TIME} is not null`];
-
-  if (search && search.trim()) {
-    const raw = search.trim();
-    const safe = escapeLiteral(raw);
-    const lower = raw.toLowerCase();
-    const likeFields = [
-      DEAL_FIELDS.NAME,
-      DEAL_FIELDS.NUMERO_DE_ORDEN,
-      DEAL_FIELDS.CIUDAD,
-      DEAL_FIELDS.ENVIA_TRACKING_NUMBER,
-    ];
-    const orClauses = likeFields.map(
-      (field) => `${field} like '%${safe}%'`,
-    );
-
-    const matchingStages = DEAL_STAGES.filter((stage) =>
-      stage.toLowerCase().includes(lower),
-    );
-    if (matchingStages.length) {
-      const list = matchingStages
-        .map((s) => `'${escapeLiteral(s)}'`)
-        .join(", ");
-      orClauses.push(`${DEAL_FIELDS.STAGE} in (${list})`);
-    }
-
-    const matchingStates = ESTADOS_MEXICO.filter((state) =>
-      state.toLowerCase().includes(lower),
-    );
-    if (matchingStates.length) {
-      const list = matchingStates
-        .map((s) => `'${escapeLiteral(s)}'`)
-        .join(", ");
-      orClauses.push(`${DEAL_FIELDS.ESTADO} in (${list})`);
-    }
-
-    conditions.push(`(${orClauses.join(" OR ")})`);
-  }
 
   if (statusFilter) {
     conditions.push(
@@ -188,7 +148,6 @@ export default function useDealsList() {
 
   useEffect(() => {
     fetchPage({
-      search,
       statusFilter,
       stageFilter,
       dateFrom,
@@ -197,7 +156,6 @@ export default function useDealsList() {
     });
   }, [
     fetchPage,
-    search,
     statusFilter,
     stageFilter,
     dateFrom,
@@ -207,7 +165,6 @@ export default function useDealsList() {
 
   const reload = useCallback(() => {
     fetchPage({
-      search,
       statusFilter,
       stageFilter,
       dateFrom,
@@ -216,7 +173,6 @@ export default function useDealsList() {
     });
   }, [
     fetchPage,
-    search,
     statusFilter,
     stageFilter,
     dateFrom,
@@ -226,8 +182,26 @@ export default function useDealsList() {
 
   const applySearch = useCallback((value) => {
     setSearch(value);
-    setPage(0);
   }, []);
+
+  const filteredDeals = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return deals;
+    return deals.filter((deal) => {
+      const candidates = [
+        deal[DEAL_FIELDS.NAME],
+        deal[DEAL_FIELDS.NUMERO_DE_ORDEN],
+        deal[DEAL_FIELDS.CIUDAD],
+        deal[DEAL_FIELDS.ESTADO],
+        deal[DEAL_FIELDS.STAGE],
+        deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER],
+        deal[DEAL_FIELDS.ENVIA_CARRIER],
+      ];
+      return candidates.some(
+        (value) => value && String(value).toLowerCase().includes(term),
+      );
+    });
+  }, [deals, search]);
 
   const applyStatusFilter = useCallback((value) => {
     setStatusFilter(value);
@@ -250,7 +224,7 @@ export default function useDealsList() {
   }, []);
 
   return {
-    deals,
+    deals: filteredDeals,
     loading,
     error,
     search,
