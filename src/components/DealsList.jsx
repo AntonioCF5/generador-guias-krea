@@ -1,7 +1,12 @@
 import { useMemo } from "react";
 import useDealsList from "../hooks/useDealsList";
 import useDealsStats from "../hooks/useDealsStats";
-import { DEAL_FIELDS, SHIPMENT_STATUS, SHIPMENT_STATUS_LABELS } from "../utils/constants";
+import {
+  DEAL_FIELDS,
+  DEAL_STAGES,
+  SHIPMENT_STATUS,
+  SHIPMENT_STATUS_LABELS,
+} from "../utils/constants";
 import {
   formatDate,
   formatDateTime,
@@ -16,6 +21,11 @@ const STATUS_FILTER_OPTIONS = [
     value,
     label: SHIPMENT_STATUS_LABELS[value],
   })),
+];
+
+const STAGE_FILTER_OPTIONS = [
+  { value: "", label: "Todas las etapas" },
+  ...DEAL_STAGES.map((stage) => ({ value: stage, label: stage })),
 ];
 
 const UPCOMING_DAYS = 3;
@@ -56,7 +66,6 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     error,
     search,
     statusFilter,
-    cityFilter,
     stageFilter,
     dateFrom,
     dateTo,
@@ -64,7 +73,6 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     hasMore,
     setSearch,
     setStatusFilter,
-    setCityFilter,
     setStageFilter,
     setDateFrom,
     setDateTo,
@@ -171,22 +179,17 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
           </select>
         </label>
         <label className="field field--stacked">
-          <span>Ciudad</span>
-          <input
-            type="search"
-            placeholder="Ciudad…"
-            value={cityFilter}
-            onChange={(event) => setCityFilter(event.target.value)}
-          />
-        </label>
-        <label className="field field--stacked">
           <span>Etapa</span>
-          <input
-            type="search"
-            placeholder="Etapa…"
+          <select
             value={stageFilter}
             onChange={(event) => setStageFilter(event.target.value)}
-          />
+          >
+            {STAGE_FILTER_OPTIONS.map((option) => (
+              <option key={option.value || "all"} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field field--stacked">
           <span>Fecha desde</span>

@@ -41,7 +41,6 @@ function escapeLiteral(value) {
 function buildQuery({
   search,
   statusFilter,
-  cityFilter,
   stageFilter,
   dateFrom,
   dateTo,
@@ -62,15 +61,9 @@ function buildQuery({
     );
   }
 
-  if (cityFilter && cityFilter.trim()) {
+  if (stageFilter) {
     conditions.push(
-      `${DEAL_FIELDS.CIUDAD} like '%${escapeLiteral(cityFilter.trim())}%'`,
-    );
-  }
-
-  if (stageFilter && stageFilter.trim()) {
-    conditions.push(
-      `${DEAL_FIELDS.STAGE} like '%${escapeLiteral(stageFilter.trim())}%'`,
+      `${DEAL_FIELDS.STAGE} = '${escapeLiteral(stageFilter)}'`,
     );
   }
 
@@ -99,7 +92,6 @@ export default function useDealsList() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -134,7 +126,6 @@ export default function useDealsList() {
     fetchPage({
       search,
       statusFilter,
-      cityFilter,
       stageFilter,
       dateFrom,
       dateTo,
@@ -144,7 +135,6 @@ export default function useDealsList() {
     fetchPage,
     search,
     statusFilter,
-    cityFilter,
     stageFilter,
     dateFrom,
     dateTo,
@@ -155,7 +145,6 @@ export default function useDealsList() {
     fetchPage({
       search,
       statusFilter,
-      cityFilter,
       stageFilter,
       dateFrom,
       dateTo,
@@ -165,7 +154,6 @@ export default function useDealsList() {
     fetchPage,
     search,
     statusFilter,
-    cityFilter,
     stageFilter,
     dateFrom,
     dateTo,
@@ -179,11 +167,6 @@ export default function useDealsList() {
 
   const applyStatusFilter = useCallback((value) => {
     setStatusFilter(value);
-    setPage(0);
-  }, []);
-
-  const applyCityFilter = useCallback((value) => {
-    setCityFilter(value);
     setPage(0);
   }, []);
 
@@ -208,7 +191,6 @@ export default function useDealsList() {
     error,
     search,
     statusFilter,
-    cityFilter,
     stageFilter,
     dateFrom,
     dateTo,
@@ -216,7 +198,6 @@ export default function useDealsList() {
     hasMore,
     setSearch: applySearch,
     setStatusFilter: applyStatusFilter,
-    setCityFilter: applyCityFilter,
     setStageFilter: applyStageFilter,
     setDateFrom: applyDateFrom,
     setDateTo: applyDateTo,

@@ -69,3 +69,14 @@ export const SHIPMENT_STATUS_LABELS = {
 };
 
 export const DEALS_LIST_PAGE_SIZE = 25;
+
+export const DEAL_STAGES = [
+  "Cita Agendada",
+  "Diseño",
+  "Diseño Aprobado",
+  "Diseño Enviado",
+  "En Producción",
+  "Cuadro Enviado",
+  "Compró Cuadro",
+  "No Compró Cuadro",
+];
