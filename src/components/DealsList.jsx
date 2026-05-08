@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import useDealsList from "../hooks/useDealsList";
 import useDealsStats from "../hooks/useDealsStats";
 import {
@@ -14,6 +14,7 @@ import {
   shipmentStatusLabel,
   shipmentStatusModifier,
 } from "../utils/formatters";
+import { executeFunction, normalizeError } from "../utils/zohoApi";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "", label: "Todos los estatus" },
@@ -96,6 +97,26 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     error: statsError,
     reload: reloadStats,
   } = useDealsStats();
+
+  const [generatingId, setGeneratingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
+
+  const handleGenerateLabel = async (deal) => {
+    const dealId = deal[DEAL_FIELDS.ID];
+    if (!dealId || generatingId) return;
+    setGeneratingId(dealId);
+    setActionError(null);
+    try {
+      await executeFunction("envia_generate_label", { deal_id: dealId });
+      reload();
+      reloadStats();
+    } catch (err) {
+      console.error("[DealsList] envia_generate_label failed:", err);
+      setActionError(normalizeError(err, "No se pudo generar la guía"));
+    } finally {
+      setGeneratingId(null);
+    }
+  };
 
   const sortedDeals = useMemo(() => {
     const priority = (deal) => {
@@ -216,6 +237,12 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
         </div>
       )}
 
+      {actionError && (
+        <div className="alert alert--err" role="alert">
+          {actionError.message}
+        </div>
+      )}
+
       <div className="card deals-list__table-wrap">
         {loading && deals.length === 0 ? (
           <div className="deals-list__state">Cargando deals…</div>
@@ -310,13 +337,13 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                         <button
                           type="button"
                           className="btn btn--success btn--sm"
-                          onClick={() => onSelectDeal?.(deal)}
-                          disabled={!onSelectDeal}
+                          onClick={() => handleGenerateLabel(deal)}
+                          disabled={generatingId === id || Boolean(generatingId)}
                         >
                           <span className="btn__icon" aria-hidden="true">
                             📦
                           </span>
-                          Generar guía
+                          {generatingId === id ? "Generando…" : "Generar guía"}
                         </button>
                       )}
                     </td>
