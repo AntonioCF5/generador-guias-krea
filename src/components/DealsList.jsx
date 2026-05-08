@@ -244,6 +244,18 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
       )}
 
       <div className="card deals-list__table-wrap">
+        {generatingId && (
+          <div
+            className="deals-list__overlay"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="spinner" aria-hidden="true" />
+            <span className="deals-list__overlay-text">
+              Generando guía…
+            </span>
+          </div>
+        )}
         {loading && deals.length === 0 ? (
           <div className="deals-list__state">Cargando deals…</div>
         ) : !loading && deals.length === 0 ? (
@@ -340,9 +352,16 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                           onClick={() => handleGenerateLabel(deal)}
                           disabled={generatingId === id || Boolean(generatingId)}
                         >
-                          <span className="btn__icon" aria-hidden="true">
-                            📦
-                          </span>
+                          {generatingId === id ? (
+                            <span
+                              className="spinner spinner--sm"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <span className="btn__icon" aria-hidden="true">
+                              📦
+                            </span>
+                          )}
                           {generatingId === id ? "Generando…" : "Generar guía"}
                         </button>
                       )}
