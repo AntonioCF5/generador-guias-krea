@@ -103,6 +103,12 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
 
   const handleGenerateLabel = async (deal) => {
     const dealId = deal[DEAL_FIELDS.ID];
+    console.log(
+      "[envia_generate_label] click recibido para deal:",
+      dealId,
+      "generatingId actual:",
+      generatingId,
+    );
     if (!dealId || generatingId) return;
     setGeneratingId(dealId);
     setActionError(null);

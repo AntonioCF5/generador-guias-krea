@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - claude/create-deals-list-view-9WxZx
+      - claude/fix-search-filter-0X4FT
   workflow_dispatch:
 
 permissions:
