@@ -44,22 +44,22 @@ export function formatStageOrPlaceholder(stage) {
 }
 
 export function shipmentStatusLabel(status) {
-  if (!status) return SHIPMENT_STATUS_LABELS[SHIPMENT_STATUS.PENDING];
+  if (!status) return SHIPMENT_STATUS_LABELS[SHIPMENT_STATUS.PENDIENTE];
   return SHIPMENT_STATUS_LABELS[status] || String(status);
 }
 
 export function shipmentStatusModifier(status) {
   switch (status) {
-    case SHIPMENT_STATUS.GENERATED:
     case SHIPMENT_STATUS.DELIVERED:
       return "pill--ok";
-    case SHIPMENT_STATUS.IN_TRANSIT:
+    case SHIPMENT_STATUS.SHIPPED:
+    case SHIPMENT_STATUS.OUT_FOR_DELIVERY:
+    case SHIPMENT_STATUS.PICKED_UP:
       return "pill--info";
-    case SHIPMENT_STATUS.CANCELLED:
-      return "pill--err";
-    case SHIPMENT_STATUS.QUOTED:
-    case SHIPMENT_STATUS.PENDING:
+    case SHIPMENT_STATUS.PENDIENTE:
       return "pill--warn";
+    case SHIPMENT_STATUS.ADDRESS_ERROR:
+      return "pill--err";
     default:
       return "pill--muted";
   }

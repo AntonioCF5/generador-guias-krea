@@ -51,21 +51,21 @@ export const CONTACT_FIELDS = {
 };
 
 export const SHIPMENT_STATUS = {
-  PENDING: "Pending",
-  QUOTED: "Quoted",
-  GENERATED: "Generated",
-  IN_TRANSIT: "In_Transit",
+  PENDIENTE: "Pendiente",
+  PICKED_UP: "Picked Up",
+  SHIPPED: "Shipped",
+  OUT_FOR_DELIVERY: "Out for Delivery",
   DELIVERED: "Delivered",
-  CANCELLED: "Cancelled",
+  ADDRESS_ERROR: "Address error",
 };
 
 export const SHIPMENT_STATUS_LABELS = {
-  [SHIPMENT_STATUS.PENDING]: "Pendiente",
-  [SHIPMENT_STATUS.QUOTED]: "Cotizado",
-  [SHIPMENT_STATUS.GENERATED]: "Guía generada",
-  [SHIPMENT_STATUS.IN_TRANSIT]: "En tránsito",
+  [SHIPMENT_STATUS.PENDIENTE]: "Pendiente",
+  [SHIPMENT_STATUS.PICKED_UP]: "Recolectado",
+  [SHIPMENT_STATUS.SHIPPED]: "Enviado",
+  [SHIPMENT_STATUS.OUT_FOR_DELIVERY]: "En reparto",
   [SHIPMENT_STATUS.DELIVERED]: "Entregado",
-  [SHIPMENT_STATUS.CANCELLED]: "Cancelado",
+  [SHIPMENT_STATUS.ADDRESS_ERROR]: "Error de dirección",
 };
 
 export const DEALS_LIST_PAGE_SIZE = 25;
