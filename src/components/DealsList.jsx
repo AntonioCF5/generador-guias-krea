@@ -114,7 +114,7 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     setActionError(null);
     try {
       const res = await executeFunction("envia_generate_label", {
-        deal_id: String(dealId),
+        dealId: String(dealId),
       });
       console.log("[envia_generate_label] raw response:", res);
       const parsed = parseOutput(res);
