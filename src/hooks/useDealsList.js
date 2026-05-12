@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { searchDealsByCOQL, normalizeError } from "../utils/zohoApi";
-import {
-  DEAL_FIELDS,
-  DEALS_LIST_PAGE_SIZE,
-  MODULES,
-  SHIPMENT_STATUS,
-} from "../utils/constants";
+import { DEAL_FIELDS, DEALS_LIST_PAGE_SIZE, MODULES } from "../utils/constants";
 
 const COQL_FIELDS = [
   DEAL_FIELDS.ID,
@@ -88,30 +83,6 @@ export default function useDealsList() {
         offset += rows.length;
       }
       setAllDeals(collected);
-      // TEMP: shipment-status values diagnostic. Remove after SHIPMENT_STATUS is aligned.
-      const seenStatuses = new Set();
-      for (const deal of collected) {
-        const status = deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS];
-        if (status != null) seenStatuses.add(status);
-      }
-      const knownStatuses = new Set(Object.values(SHIPMENT_STATUS));
-      const unknownStatuses = [...seenStatuses].filter(
-        (s) => !knownStatuses.has(s),
-      );
-      console.log(
-        "[DealsList] Shipment status values seen:",
-        [...seenStatuses],
-      );
-      console.log(
-        "[DealsList] Shipment status chars (JSON):",
-        [...seenStatuses].map((s) => JSON.stringify(s)),
-      );
-      if (unknownStatuses.length) {
-        console.warn(
-          "[DealsList] Shipment statuses not present in SHIPMENT_STATUS:",
-          unknownStatuses.map((s) => JSON.stringify(s)),
-        );
-      }
     } catch (err) {
       console.error("[DealsList] Query failed:", err);
       setError(normalizeError(err, "No se pudieron cargar los deals"));

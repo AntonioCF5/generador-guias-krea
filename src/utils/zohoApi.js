@@ -44,3 +44,16 @@ export async function coqlCount(selectQuery) {
 export async function executeFunction(funcName, args = {}) {
   return ZOHO.CRM.FUNCTIONS.execute(funcName, { arguments: JSON.stringify(args) });
 }
+
+export function parseOutput(res) {
+  const raw = res?.details?.output ?? res?.output ?? res;
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return { ok: false, error: { message: "Respuesta no-JSON de Deluge", raw } };
+    }
+  }
+  return raw;
+}
