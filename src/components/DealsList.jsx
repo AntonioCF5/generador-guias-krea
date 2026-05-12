@@ -14,7 +14,7 @@ import {
   shipmentStatusLabel,
   shipmentStatusModifier,
 } from "../utils/formatters";
-import { executeFunction, normalizeError } from "../utils/zohoApi";
+import { executeFunction, normalizeError, parseOutput } from "../utils/zohoApi";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "", label: "Todos los estatus" },
@@ -107,7 +107,25 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     setGeneratingId(dealId);
     setActionError(null);
     try {
-      await executeFunction("envia_generate_label", { deal_id: dealId });
+      const res = await executeFunction("envia_generate_label", {
+        deal_id: dealId,
+      });
+      console.log("[envia_generate_label] raw response:", res);
+      const parsed = parseOutput(res);
+      console.log("[envia_generate_label] parsed envelope:", parsed);
+
+      if (!parsed || parsed.ok !== true) {
+        const msg =
+          parsed?.error?.message ||
+          parsed?.error ||
+          parsed?.message ||
+          "La función devolvió ok=false sin mensaje";
+        throw new Error(
+          typeof msg === "string" ? msg : JSON.stringify(msg),
+        );
+      }
+
+      console.log("[envia_generate_label] success data:", parsed.data);
       reload();
       reloadStats();
     } catch (err) {
