@@ -113,9 +113,12 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     setGeneratingId(dealId);
     setActionError(null);
     try {
-      const res = await executeFunction("envia_generate_label", {
-        dealId: String(dealId),
-      });
+      const argsPayload = { dealId: String(dealId) };
+      console.log(
+        "[envia_generate_label] sending args (BUILD_TAG=dealId-v2):",
+        JSON.stringify(argsPayload),
+      );
+      const res = await executeFunction("envia_generate_label", argsPayload);
       console.log("[envia_generate_label] raw response:", res);
       const parsed = parseOutput(res);
       console.log("[envia_generate_label] parsed envelope:", parsed);
