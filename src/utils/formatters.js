@@ -71,3 +71,43 @@ export function contactNameFromLookup(deal) {
   if (typeof contact === "string") return contact;
   return contact.name || contact.full_name || "—";
 }
+
+const CARRIER_LABELS = {
+  fedex: "FedEx",
+  dhl: "DHL",
+  ups: "UPS",
+  estafeta: "Estafeta",
+  paquetexpress: "Paquetexpress",
+  redpack: "Redpack",
+  sendex: "Sendex",
+  "99minutos": "99Minutos",
+  ampm: "AM PM",
+};
+
+export function carrierLabel(carrier) {
+  if (!carrier) return "";
+  const key = String(carrier).trim().toLowerCase();
+  return CARRIER_LABELS[key] || String(carrier);
+}
+
+const TRACKING_URL_TEMPLATES = {
+  fedex: (t) =>
+    `https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(t)}`,
+  dhl: (t) =>
+    `https://www.dhl.com/mx-es/home/tracking.html?tracking-id=${encodeURIComponent(t)}`,
+  ups: (t) => `https://www.ups.com/track?tracknum=${encodeURIComponent(t)}`,
+  estafeta: (t) =>
+    `https://www.estafeta.com/Tracking/searchByGet?wayBillType=0&wayBill=${encodeURIComponent(t)}`,
+  paquetexpress: (t) =>
+    `https://www.paquetexpress.com.mx/rastreo-de-guia/?guia=${encodeURIComponent(t)}`,
+  redpack: (t) =>
+    `https://www.redpack.com.mx/es/rastreo/?guias=${encodeURIComponent(t)}`,
+};
+
+export function trackingUrlFor(carrier, trackingNumber) {
+  if (!carrier || !trackingNumber) return null;
+  const key = String(carrier).trim().toLowerCase();
+  const template = TRACKING_URL_TEMPLATES[key];
+  if (!template) return null;
+  return template(String(trackingNumber).trim());
+}

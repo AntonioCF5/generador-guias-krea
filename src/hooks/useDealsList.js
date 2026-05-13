@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { searchDealsByCOQL, normalizeError } from "../utils/zohoApi";
+import {
+  getDeal,
+  normalizeError,
+  searchDealsByCOQL,
+} from "../utils/zohoApi";
 import { DEAL_FIELDS, DEALS_LIST_PAGE_SIZE, MODULES } from "../utils/constants";
 
 const COQL_FIELDS = [
@@ -100,6 +104,23 @@ export default function useDealsList() {
     fetchAll({ statusFilter, stageFilter });
   }, [fetchAll, statusFilter, stageFilter]);
 
+  const refreshDeal = useCallback(async (dealId) => {
+    if (!dealId) return null;
+    try {
+      const fresh = await getDeal(dealId);
+      if (!fresh) return null;
+      setAllDeals((prev) =>
+        prev.map((d) =>
+          d[DEAL_FIELDS.ID] === dealId ? { ...d, ...fresh } : d,
+        ),
+      );
+      return fresh;
+    } catch (err) {
+      console.error("[DealsList] refreshDeal failed:", err);
+      return null;
+    }
+  }, []);
+
   const filteredDeals = useMemo(() => {
     const term = search.trim().toLowerCase();
     const fromMs = dateFrom
@@ -191,5 +212,6 @@ export default function useDealsList() {
     setDateTo: applyDateTo,
     setPage,
     reload,
+    refreshDeal,
   };
 }
