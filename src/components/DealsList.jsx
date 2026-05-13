@@ -319,8 +319,11 @@ export default function DealsList({ initialRecordId }) {
                 const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
                 const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
                 const orden = deal[DEAL_FIELDS.NUMERO_DE_ORDEN];
+                const persistedTrackingUrl =
+                  deal[DEAL_FIELDS.ENVIA_TRACKING_URL];
                 const trackUrl =
-                  labelUrl || trackingUrlFor(carrier, tracking);
+                  persistedTrackingUrl ||
+                  trackingUrlFor(carrier, tracking);
                 const isGenerating = generatingId === id;
                 const generationLocked = Boolean(generatingId);
                 const dateClass = rowDateClass(
@@ -389,17 +392,24 @@ export default function DealsList({ initialRecordId }) {
                             </a>
                           )}
                           {trackUrl && (
-                            <a
+                            <button
+                              type="button"
                               className="btn btn--info btn--sm"
-                              href={trackUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              onClick={() => {
+                                console.log("[tracking] carrier:", carrier);
+                                console.log("[tracking] trackingUrl:", trackUrl);
+                                window.open(
+                                  trackUrl,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                );
+                              }}
                             >
                               <span className="btn__icon" aria-hidden="true">
                                 📍
                               </span>
                               Rastrear guía
-                            </a>
+                            </button>
                           )}
                           <button
                             type="button"
