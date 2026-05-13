@@ -137,7 +137,7 @@ export default function DealsList({ initialRecordId }) {
         );
       }
 
-      console.log("[envia_generate_label] success data:", parsed.data);
+      console.log("[envia_generate_label] success payload:", parsed);
       await refreshDeal(dealId);
       reloadStats();
     } catch (err) {
@@ -319,7 +319,9 @@ export default function DealsList({ initialRecordId }) {
                 const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
                 const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
                 const orden = deal[DEAL_FIELDS.NUMERO_DE_ORDEN];
-                const trackUrl = trackingUrlFor(carrier, tracking);
+                const enviaTrackingUrl = deal[DEAL_FIELDS.ENVIA_TRACKING_URL];
+                const trackUrl =
+                  enviaTrackingUrl || trackingUrlFor(carrier, tracking);
                 const isGenerating = generatingId === id;
                 const generationLocked = Boolean(generatingId);
                 const dateClass = rowDateClass(
