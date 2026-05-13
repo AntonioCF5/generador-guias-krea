@@ -21,8 +21,12 @@ const COQL_FIELDS = [
   DEAL_FIELDS.ENVIA_TRACKING_NUMBER,
   DEAL_FIELDS.ENVIA_CARRIER,
   DEAL_FIELDS.ENVIA_LABEL_URL,
-  DEAL_FIELDS.ENVIA_TRACKING_URL,
 ];
+// Envia_Tracking_URL is intentionally NOT in the COQL projection: that
+// field may not exist on the Deals module yet and one invalid column
+// fails the whole query. Once the field is created in Zoho schema we
+// can re-add DEAL_FIELDS.ENVIA_TRACKING_URL above. refreshDeal still
+// reads it via getRecord, so per-row updates pick it up automatically.
 
 function escapeLiteral(value) {
   return String(value).replace(/'/g, "\\'");
