@@ -8,11 +8,13 @@ import {
   SHIPMENT_STATUS_LABELS,
 } from "../utils/constants";
 import {
+  carrierLabel,
   formatDate,
   formatDateTime,
   formatStageOrPlaceholder,
   shipmentStatusLabel,
   shipmentStatusModifier,
+  trackingUrlFor,
 } from "../utils/formatters";
 import { executeFunction, normalizeError, parseOutput } from "../utils/zohoApi";
 
@@ -60,7 +62,7 @@ function dealHasGuide(deal) {
   );
 }
 
-export default function DealsList({ initialRecordId, onSelectDeal }) {
+export default function DealsList({ initialRecordId }) {
   const {
     deals,
     totalCount,
@@ -80,6 +82,7 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
     setDateTo,
     setPage,
     reload,
+    refreshDeal,
   } = useDealsList();
 
   const showingFrom = useMemo(
@@ -135,7 +138,7 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
       }
 
       console.log("[envia_generate_label] success data:", parsed.data);
-      reload();
+      await refreshDeal(dealId);
       reloadStats();
     } catch (err) {
       console.error("[DealsList] envia_generate_label failed:", err);
@@ -312,6 +315,13 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                 const estado = deal[DEAL_FIELDS.ESTADO];
                 const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
                 const hasGuide = dealHasGuide(deal);
+                const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
+                const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
+                const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
+                const orden = deal[DEAL_FIELDS.NUMERO_DE_ORDEN];
+                const trackUrl = trackingUrlFor(carrier, tracking);
+                const isGenerating = generatingId === id;
+                const generationLocked = Boolean(generatingId);
                 const dateClass = rowDateClass(
                   deal[DEAL_FIELDS.FECHA_Y_HORA],
                   hasGuide,
@@ -328,13 +338,18 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                       <div className="deals-list__name">
                         {deal[DEAL_FIELDS.NAME] || "(Sin nombre)"}
                       </div>
-                      {deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER] && (
+                      {(carrier || tracking) && (
                         <div className="deals-list__sub">
-                          Tracking: {deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER]}
+                          {[
+                            carrier ? carrierLabel(carrier) : null,
+                            tracking ? `Tracking: ${tracking}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </div>
                       )}
                     </td>
-                    <td>{deal[DEAL_FIELDS.NUMERO_DE_ORDEN] || "—"}</td>
+                    <td>{orden || "—"}</td>
                     <td>{formatStageOrPlaceholder(deal[DEAL_FIELDS.STAGE])}</td>
                     <td>{destino}</td>
                     <td>{formatDateTime(deal[DEAL_FIELDS.FECHA_Y_HORA])}</td>
@@ -347,10 +362,10 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                     <td className="deals-list__actions">
                       {hasGuide ? (
                         <>
-                          {deal[DEAL_FIELDS.ENVIA_LABEL_URL] && (
+                          {labelUrl && (
                             <a
                               className="btn btn--info btn--sm"
-                              href={deal[DEAL_FIELDS.ENVIA_LABEL_URL]}
+                              href={labelUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -360,16 +375,48 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                               Ver guía
                             </a>
                           )}
+                          {labelUrl && (
+                            <a
+                              className="btn btn--info btn--sm"
+                              href={labelUrl}
+                              download={`guia-${orden || id}.pdf`}
+                            >
+                              <span className="btn__icon" aria-hidden="true">
+                                ⬇
+                              </span>
+                              Descargar PDF
+                            </a>
+                          )}
+                          {trackUrl && (
+                            <a
+                              className="btn btn--info btn--sm"
+                              href={trackUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <span className="btn__icon" aria-hidden="true">
+                                📍
+                              </span>
+                              Rastrear guía
+                            </a>
+                          )}
                           <button
                             type="button"
                             className="btn btn--warn btn--sm"
-                            onClick={() => onSelectDeal?.(deal)}
-                            disabled={!onSelectDeal}
+                            onClick={() => handleGenerateLabel(deal)}
+                            disabled={isGenerating || generationLocked}
                           >
-                            <span className="btn__icon" aria-hidden="true">
-                              🔄
-                            </span>
-                            Regenerar
+                            {isGenerating ? (
+                              <span
+                                className="spinner spinner--sm"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <span className="btn__icon" aria-hidden="true">
+                                🔄
+                              </span>
+                            )}
+                            {isGenerating ? "Generando…" : "Regenerar guía"}
                           </button>
                         </>
                       ) : (
@@ -377,9 +424,9 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                           type="button"
                           className="btn btn--success btn--sm"
                           onClick={() => handleGenerateLabel(deal)}
-                          disabled={generatingId === id || Boolean(generatingId)}
+                          disabled={isGenerating || generationLocked}
                         >
-                          {generatingId === id ? (
+                          {isGenerating ? (
                             <span
                               className="spinner spinner--sm"
                               aria-hidden="true"
@@ -389,7 +436,7 @@ export default function DealsList({ initialRecordId, onSelectDeal }) {
                               📦
                             </span>
                           )}
-                          {generatingId === id ? "Generando…" : "Generar guía"}
+                          {isGenerating ? "Generando…" : "Generar guía"}
                         </button>
                       )}
                     </td>
