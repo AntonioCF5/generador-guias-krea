@@ -109,6 +109,7 @@ export default function DealsList({ initialRecordId }) {
   const [generatingId, setGeneratingId] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [trackingFetchId, setTrackingFetchId] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
   const trackingUrlCache = useRef(new Map());
 
   const handleGenerateLabel = async (deal) => {
@@ -194,6 +195,35 @@ export default function DealsList({ initialRecordId }) {
           new Error("No hay URL de rastreo disponible para esta guía"),
         ),
       );
+    }
+  };
+
+  const handleDownloadPdf = async (deal) => {
+    const id = deal[DEAL_FIELDS.ID];
+    const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
+    if (!labelUrl || downloadingId) return;
+    const filename = `guia-${deal[DEAL_FIELDS.NUMERO_DE_ORDEN] || id}.pdf`;
+    setDownloadingId(id);
+    try {
+      const response = await fetch(labelUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.warn(
+        "[label] descarga directa bloqueada, abriendo pestaña:",
+        err,
+      );
+      window.open(labelUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -373,6 +403,8 @@ export default function DealsList({ initialRecordId }) {
                 const showTrack =
                   hasGuide && Boolean(cachedTrackUrl || fallbackTrackUrl);
                 const isTrackFetching = trackingFetchId === id;
+                const isDownloadingThis = downloadingId === id;
+                const downloadLocked = Boolean(downloadingId);
                 const isGenerating = generatingId === id;
                 const generationLocked = Boolean(generatingId);
                 const dateClass = rowDateClass(
@@ -429,16 +461,24 @@ export default function DealsList({ initialRecordId }) {
                             </a>
                           )}
                           {labelUrl && (
-                            <a
+                            <button
+                              type="button"
                               className="btn btn--info btn--sm"
-                              href={labelUrl}
-                              download={`guia-${orden || id}.pdf`}
+                              onClick={() => handleDownloadPdf(deal)}
+                              disabled={isDownloadingThis || downloadLocked}
                             >
-                              <span className="btn__icon" aria-hidden="true">
-                                ⬇
-                              </span>
-                              Descargar PDF
-                            </a>
+                              {isDownloadingThis ? (
+                                <span
+                                  className="spinner spinner--sm"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <span className="btn__icon" aria-hidden="true">
+                                  ⬇
+                                </span>
+                              )}
+                              {isDownloadingThis ? "Descargando…" : "Descargar PDF"}
+                            </button>
                           )}
                           {showTrack && (
                             <button
