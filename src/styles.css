@@ -279,10 +279,13 @@ body {
   }
 }
 
+.deals-list__results {
+  position: relative;
+}
+
 .deals-list__table-wrap {
   padding: 0;
   overflow-x: auto;
-  position: relative;
 }
 
 .deals-list__overlay {
@@ -512,4 +515,155 @@ body {
 
 .stat-card--success::before {
   background: var(--success);
+}
+
+/* ------------------------------------------------------------------ */
+/* Responsive: mobile-first cards, desktop table                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Mobile-first default: render the card list, hide the table.
+ * The desktop table is opted-in at the `md` breakpoint below.
+ */
+.deals-list__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deals-list__table-wrap {
+  display: none;
+}
+
+.deals-list__card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deals-list__card.is-current {
+  border-color: var(--brand);
+  background: var(--row-current);
+}
+
+.deals-list__card.row--upcoming {
+  border-left: 4px solid var(--warn);
+}
+
+.deals-list__card.row--overdue {
+  border-left: 4px solid var(--danger);
+}
+
+.deals-list__card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.deals-list__card-head .deals-list__name {
+  font-size: 14px;
+}
+
+/* Action buttons stack full-width on mobile so they never overflow. */
+.deals-list__card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deals-list__card-actions .btn {
+  width: 100%;
+}
+
+.deals-list__details-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.deals-list__details-toggle:hover {
+  color: var(--brand-dark);
+}
+
+.deals-list__card-details {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.deals-list__card-details > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.deals-list__card-details dt {
+  color: var(--muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.deals-list__card-details dd {
+  margin: 0;
+  color: var(--ink);
+  text-align: right;
+}
+
+/* Small-phone tweaks: tighter chrome, single-column filters. */
+@media (max-width: 768px) {
+  .app {
+    padding: 12px 12px 24px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .deals-list__footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .deals-list__pagination {
+    justify-content: space-between;
+  }
+
+  .deals-list__pagination .btn {
+    flex: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .deals-list__filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* `md` breakpoint and up: show the full table, hide the cards. */
+@media (min-width: 769px) {
+  .deals-list__cards {
+    display: none;
+  }
+
+  .deals-list__table-wrap {
+    display: block;
+  }
 }
