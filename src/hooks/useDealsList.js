@@ -87,6 +87,15 @@ export default function useDealsList() {
         offset += rows.length;
       }
       setAllDeals(collected);
+      const withLabel = collected.filter(
+        (d) => d[DEAL_FIELDS.ENVIA_LABEL_URL],
+      ).length;
+      const withTracking = collected.filter(
+        (d) => d[DEAL_FIELDS.ENVIA_TRACKING_NUMBER],
+      ).length;
+      console.log(
+        `[DealsList] fetched ${collected.length} deals — Envia_Label_URL: ${withLabel} populated, Numero_de_Guia: ${withTracking} populated`,
+      );
     } catch (err) {
       console.error("[DealsList] Query failed:", err);
       setError(normalizeError(err, "No se pudieron cargar los deals"));

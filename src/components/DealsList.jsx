@@ -147,6 +147,13 @@ export default function DealsList({ initialRecordId }) {
 
       console.log("[envia_generate_label] success payload:", parsed);
       const fresh = await refreshDeal(dealId);
+      console.log("[refreshDeal] fresh deal fields:", {
+        id: fresh?.[DEAL_FIELDS.ID],
+        Envia_Label_URL: fresh?.[DEAL_FIELDS.ENVIA_LABEL_URL],
+        Numero_de_Guia: fresh?.[DEAL_FIELDS.ENVIA_TRACKING_NUMBER],
+        Paqueteria: fresh?.[DEAL_FIELDS.ENVIA_CARRIER],
+        URL_de_Rastreo: fresh?.[DEAL_FIELDS.ENVIA_TRACKING_URL],
+      });
       if (fresh) {
         trackingUrlCache.current.set(
           dealId,
