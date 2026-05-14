@@ -330,7 +330,7 @@ Crear en **Setup → Customization → Modules and Fields → Deals**:
 | Envia Tracking Number       | `Envia_Tracking_Number`        | Single Line     |                         |
 | Envia Carrier               | `Envia_Carrier`                | Single Line     |                         |
 | Envia Service               | `Envia_Service`                | Single Line     |                         |
-| Envia Label URL             | `Envia_Label_URL`              | Multi-Line      | NOT a URL field — COQL silently drops URL-type columns, so the deals list would never see the value. Use Multi-Line. |
+| Envia Label URL             | `Envia_Label_URL`              | URL             |                         |
 | Envia Label Generated At    | `Envia_Label_Generated_At`     | Date/Time       |                         |
 | Envia Shipping Cost         | `Envia_Shipping_Cost`          | Currency (MXN)  |                         |
 | Envia Shipment Status       | `Envia_Shipment_Status`        | Picklist        | `Pending`, `Quoted`, `Generated`, `In_Transit`, `Delivered`, `Cancelled` |
@@ -749,20 +749,17 @@ if (data != null && data.get("label") != null)
   out.put("service", shipment.get("service"));
   out.put("totalPrice", shipment.get("totalPrice"));
 
-  // Server-side write-back — REQUIRED. The deals-list widget reads
-  // Envia_Label_URL straight from the Deal (via COQL), so Deluge must
-  // persist it here. Envia_Label_URL must be a Multi-Line field, not a
-  // URL field (COQL silently drops URL-type columns).
-  updMap = Map();
-  updMap.put("Envia_Shipment_ID", out.get("shipmentId"));
-  updMap.put("Envia_Tracking_Number", out.get("trackingNumber"));
-  updMap.put("Envia_Label_URL", out.get("labelUrl"));
-  updMap.put("Envia_Carrier", out.get("carrier"));
-  updMap.put("Envia_Service", out.get("service"));
-  updMap.put("Envia_Shipping_Cost", out.get("totalPrice"));
-  updMap.put("Envia_Shipment_Status", "Generated");
-  updMap.put("Envia_Label_Generated_At", zoho.currenttime);
-  zoho.crm.updateRecord("Deals", deal_id.toLong(), updMap);
+  // Optional server-side write-back (defense in depth)
+  // zoho.crm.updateRecord("Deals", deal_id.toLong(), {
+  //   "Envia_Shipment_ID": out.get("shipmentId"),
+  //   "Envia_Tracking_Number": out.get("trackingNumber"),
+  //   "Envia_Label_URL": out.get("labelUrl"),
+  //   "Envia_Carrier": out.get("carrier"),
+  //   "Envia_Service": out.get("service"),
+  //   "Envia_Shipping_Cost": out.get("totalPrice"),
+  //   "Envia_Shipment_Status": "Generated",
+  //   "Envia_Label_Generated_At": zoho.currenttime
+  // });
 
   result = {"ok": true, "data": out, "error": null};
 }

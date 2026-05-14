@@ -189,7 +189,7 @@ Every one must exist with the listed API name or the query fails with
 | `Notas_Extra_de_Entrega` | multi-line text | delivery notes |
 | `Numero_de_Guia` | single-line text | tracking number |
 | `Paqueteria` | picklist | carrier name |
-| `Envia_Label_URL` | multi-line text | label PDF URL — must NOT be a URL-type field; COQL silently drops URL columns and the list never sees the value |
+| `Envia_Label_URL` | URL or text | label PDF URL |
 | `Envia_Shipment_Status` | picklist | status filter |
 
 `Envia_Shipment_Status` picklist values must match the keys in
