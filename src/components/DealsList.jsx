@@ -18,7 +18,9 @@ import {
 } from "../utils/formatters";
 import {
   executeFunction,
+  getAttachmentBlob,
   getDeal,
+  getDealAttachments,
   normalizeError,
   parseOutput,
 } from "../utils/zohoApi";
@@ -79,6 +81,50 @@ function dealSubline(deal) {
 }
 
 /**
+ * Picks the label PDF among a Deal's attachments. The label-generating
+ * Deluge function attaches a PDF whose File_Name starts with the tracking
+ * number (e.g. `481241476364<hash>.pdf`); regenerating adds a fresh one,
+ * so the newest match for the current tracking number wins.
+ */
+function pickLabelAttachment(attachments, trackingNumber) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return null;
+  const pdfs = attachments.filter((a) =>
+    String(a.File_Name || "").toLowerCase().endsWith(".pdf"),
+  );
+  const pool = pdfs.length ? pdfs : attachments;
+  const byTracking = trackingNumber
+    ? pool.filter((a) =>
+        String(a.File_Name || "").startsWith(String(trackingNumber)),
+      )
+    : [];
+  const candidates = byTracking.length ? byTracking : pool;
+  return [...candidates].sort(
+    (a, b) =>
+      new Date(b.Created_Time || 0).getTime() -
+      new Date(a.Created_Time || 0).getTime(),
+  )[0];
+}
+
+function labelFilename(deal) {
+  const base =
+    deal[DEAL_FIELDS.NUMERO_DE_ORDEN] ||
+    deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER] ||
+    deal[DEAL_FIELDS.ID];
+  return `guia-${base}.pdf`;
+}
+
+function triggerBlobDownload(blob, filename) {
+  const blobUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = blobUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
+
+/**
  * Action buttons for a deal. Reused by the desktop table row and the
  * mobile card so the button logic lives in exactly one place.
  */
@@ -87,14 +133,15 @@ function DealActions({
   generatingId,
   trackingFetchId,
   downloadingId,
+  viewingLabelId,
   trackingUrlCache,
   onGenerate,
   onTrack,
+  onView,
   onDownload,
 }) {
   const id = deal[DEAL_FIELDS.ID];
   const hasGuide = dealHasGuide(deal);
-  const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
   const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
   const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
   const cachedTrackUrl = trackingUrlCache.current.get(id);
@@ -102,7 +149,8 @@ function DealActions({
   const showTrack = hasGuide && Boolean(cachedTrackUrl || fallbackTrackUrl);
   const isTrackFetching = trackingFetchId === id;
   const isDownloadingThis = downloadingId === id;
-  const downloadLocked = Boolean(downloadingId);
+  const isViewingThis = viewingLabelId === id;
+  const labelBusy = Boolean(downloadingId || viewingLabelId);
   const isGenerating = generatingId === id;
   const generationLocked = Boolean(generatingId);
 
@@ -128,36 +176,36 @@ function DealActions({
 
   return (
     <>
-      {labelUrl && (
-        <a
-          className="btn btn--info btn--sm"
-          href={labelUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+      <button
+        type="button"
+        className="btn btn--info btn--sm"
+        onClick={() => onView(deal)}
+        disabled={labelBusy}
+      >
+        {isViewingThis ? (
+          <span className="spinner spinner--sm" aria-hidden="true" />
+        ) : (
           <span className="btn__icon" aria-hidden="true">
             👁
           </span>
-          Ver guía
-        </a>
-      )}
-      {labelUrl && (
-        <button
-          type="button"
-          className="btn btn--info btn--sm"
-          onClick={() => onDownload(deal)}
-          disabled={isDownloadingThis || downloadLocked}
-        >
-          {isDownloadingThis ? (
-            <span className="spinner spinner--sm" aria-hidden="true" />
-          ) : (
-            <span className="btn__icon" aria-hidden="true">
-              ⬇
-            </span>
-          )}
-          {isDownloadingThis ? "Descargando…" : "Descargar PDF"}
-        </button>
-      )}
+        )}
+        {isViewingThis ? "Abriendo…" : "Ver guía"}
+      </button>
+      <button
+        type="button"
+        className="btn btn--info btn--sm"
+        onClick={() => onDownload(deal)}
+        disabled={labelBusy}
+      >
+        {isDownloadingThis ? (
+          <span className="spinner spinner--sm" aria-hidden="true" />
+        ) : (
+          <span className="btn__icon" aria-hidden="true">
+            ⬇
+          </span>
+        )}
+        {isDownloadingThis ? "Descargando…" : "Descargar PDF"}
+      </button>
       {showTrack && (
         <button
           type="button"
@@ -347,8 +395,10 @@ export default function DealsList({ initialRecordId }) {
   const [actionError, setActionError] = useState(null);
   const [trackingFetchId, setTrackingFetchId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [viewingLabelId, setViewingLabelId] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const trackingUrlCache = useRef(new Map());
+  const labelBlobCache = useRef(new Map());
 
   const toggleExpand = (id) => {
     setExpandedIds((prev) => {
@@ -394,6 +444,8 @@ export default function DealsList({ initialRecordId }) {
 
       console.log("[envia_generate_label] success payload:", parsed);
       const fresh = await refreshDeal(dealId);
+      // A (re)generated label is a new attachment — drop any cached blob.
+      labelBlobCache.current.delete(dealId);
       console.log("[refreshDeal] fresh deal fields:", {
         id: fresh?.[DEAL_FIELDS.ID],
         Envia_Label_URL: fresh?.[DEAL_FIELDS.ENVIA_LABEL_URL],
@@ -452,30 +504,65 @@ export default function DealsList({ initialRecordId }) {
     }
   };
 
+  // The label PDF lives as an Attachment on the Deal (created by the
+  // label-generating Deluge function). Fetch it through the widget SDK and
+  // cache the resolved Blob so "Ver guía" and "Descargar PDF" share one read.
+  const resolveLabelBlob = async (deal) => {
+    const id = deal[DEAL_FIELDS.ID];
+    const cached = labelBlobCache.current.get(id);
+    if (cached) return cached;
+    const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
+    const attachments = await getDealAttachments(id);
+    const label = pickLabelAttachment(attachments, tracking);
+    if (!label) {
+      throw new Error(
+        "No se encontró el PDF de la guía adjunto en este Deal",
+      );
+    }
+    const blob = await getAttachmentBlob(label.$file_id || label.id);
+    labelBlobCache.current.set(id, blob);
+    return blob;
+  };
+
+  const handleViewLabel = async (deal) => {
+    const id = deal[DEAL_FIELDS.ID];
+    if (viewingLabelId || downloadingId) return;
+    // Open the tab synchronously inside the click gesture so the popup
+    // blocker doesn't kill it once the async attachment fetch resolves.
+    const win = window.open("about:blank", "_blank");
+    setViewingLabelId(id);
+    setActionError(null);
+    try {
+      const blob = await resolveLabelBlob(deal);
+      const blobUrl = URL.createObjectURL(blob);
+      if (win && !win.closed) {
+        win.location.href = blobUrl;
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      } else {
+        // Popup was blocked — fall back to a direct download.
+        URL.revokeObjectURL(blobUrl);
+        triggerBlobDownload(blob, labelFilename(deal));
+      }
+    } catch (err) {
+      if (win && !win.closed) win.close();
+      console.error("[label] view failed:", err);
+      setActionError(normalizeError(err, "No se pudo abrir la guía"));
+    } finally {
+      setViewingLabelId(null);
+    }
+  };
+
   const handleDownloadPdf = async (deal) => {
     const id = deal[DEAL_FIELDS.ID];
-    const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
-    if (!labelUrl || downloadingId) return;
-    const filename = `guia-${deal[DEAL_FIELDS.NUMERO_DE_ORDEN] || id}.pdf`;
+    if (downloadingId || viewingLabelId) return;
     setDownloadingId(id);
+    setActionError(null);
     try {
-      const response = await fetch(labelUrl);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = blobUrl;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      const blob = await resolveLabelBlob(deal);
+      triggerBlobDownload(blob, labelFilename(deal));
     } catch (err) {
-      console.warn(
-        "[label] descarga directa bloqueada, abriendo pestaña:",
-        err,
-      );
-      window.open(labelUrl, "_blank", "noopener,noreferrer");
+      console.error("[label] download failed:", err);
+      setActionError(normalizeError(err, "No se pudo descargar la guía"));
     } finally {
       setDownloadingId(null);
     }
@@ -498,9 +585,11 @@ export default function DealsList({ initialRecordId }) {
     generatingId,
     trackingFetchId,
     downloadingId,
+    viewingLabelId,
     trackingUrlCache,
     onGenerate: handleGenerateLabel,
     onTrack: handleTrack,
+    onView: handleViewLabel,
     onDownload: handleDownloadPdf,
   };
 

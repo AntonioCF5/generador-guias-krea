@@ -45,6 +45,82 @@ export async function executeFunction(funcName, args = {}) {
   return ZOHO.CRM.FUNCTIONS.execute(funcName, { arguments: JSON.stringify(args) });
 }
 
+export async function getDealAttachments(dealId) {
+  try {
+    const res = await ZOHO.CRM.API.getRelatedRecords({
+      Entity: MODULES.DEALS,
+      RecordID: dealId,
+      RelatedList: "Attachments",
+      page: 1,
+      per_page: 200,
+    });
+    return res?.data ?? [];
+  } catch (err) {
+    // The widget SDK rejects (instead of resolving with []) when a record
+    // has no related attachments — treat that as "no attachments".
+    console.warn("[attachments] getRelatedRecords failed/empty:", err);
+    return [];
+  }
+}
+
+function bytesFromString(str) {
+  const dataUrl = /^data:[^;,]*;base64,(.*)$/s.exec(str.trim());
+  const candidate = dataUrl ? dataUrl[1] : str.trim();
+  let binary;
+  try {
+    binary = atob(candidate);
+  } catch {
+    binary = str; // not base64 — assume it is already a raw binary string
+  }
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i) & 0xff;
+  }
+  return bytes;
+}
+
+// getFile's resolved shape is not documented for the widget SDK (the parent
+// CRM frame packages it), so accept Blob / ArrayBuffer / typed array /
+// wrapper object / base64 string and normalise to a Blob.
+export async function fileResponseToBlob(res, mimeType = "application/pdf") {
+  if (res == null) return null;
+  if (res instanceof Blob) return res;
+  if (res instanceof ArrayBuffer || ArrayBuffer.isView(res)) {
+    return new Blob([res], { type: mimeType });
+  }
+  if (typeof res === "string") {
+    return new Blob([bytesFromString(res)], { type: mimeType });
+  }
+  if (typeof res === "object") {
+    if (typeof res.blob === "function") {
+      try {
+        return await res.blob();
+      } catch {
+        /* fall through to the wrapped-shape handling below */
+      }
+    }
+    const inner =
+      res.data ?? res.content ?? res.body ?? res.file ?? res.fileContent ??
+      res.response ?? res.result;
+    if (inner != null && inner !== res) {
+      return fileResponseToBlob(inner, mimeType);
+    }
+  }
+  return null;
+}
+
+export async function getAttachmentBlob(fileId) {
+  const raw = await ZOHO.CRM.API.getFile({ id: fileId });
+  // Intentional: getFile's resolved shape is unverified for the widget SDK.
+  // Log it so the real shape can be confirmed in the Zoho environment.
+  console.log("[attachments] getFile raw response:", raw);
+  const blob = await fileResponseToBlob(raw);
+  if (!blob || blob.size === 0) {
+    throw new Error("La guía adjunta llegó vacía o en un formato no reconocido");
+  }
+  return blob;
+}
+
 export function parseOutput(res) {
   const raw = res?.details?.output ?? res?.output ?? res;
   if (raw == null) return null;
