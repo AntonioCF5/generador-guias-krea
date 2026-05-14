@@ -67,6 +67,243 @@ function dealHasGuide(deal) {
   );
 }
 
+function dealSubline(deal) {
+  const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
+  const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
+  return [
+    carrier ? carrierLabel(carrier) : null,
+    tracking ? `Tracking: ${tracking}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * Action buttons for a deal. Reused by the desktop table row and the
+ * mobile card so the button logic lives in exactly one place.
+ */
+function DealActions({
+  deal,
+  generatingId,
+  trackingFetchId,
+  downloadingId,
+  trackingUrlCache,
+  onGenerate,
+  onTrack,
+  onDownload,
+}) {
+  const id = deal[DEAL_FIELDS.ID];
+  const hasGuide = dealHasGuide(deal);
+  const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
+  const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
+  const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
+  const cachedTrackUrl = trackingUrlCache.current.get(id);
+  const fallbackTrackUrl = trackingUrlFor(carrier, tracking);
+  const showTrack = hasGuide && Boolean(cachedTrackUrl || fallbackTrackUrl);
+  const isTrackFetching = trackingFetchId === id;
+  const isDownloadingThis = downloadingId === id;
+  const downloadLocked = Boolean(downloadingId);
+  const isGenerating = generatingId === id;
+  const generationLocked = Boolean(generatingId);
+
+  if (!hasGuide) {
+    return (
+      <button
+        type="button"
+        className="btn btn--success btn--sm"
+        onClick={() => onGenerate(deal)}
+        disabled={isGenerating || generationLocked}
+      >
+        {isGenerating ? (
+          <span className="spinner spinner--sm" aria-hidden="true" />
+        ) : (
+          <span className="btn__icon" aria-hidden="true">
+            📦
+          </span>
+        )}
+        {isGenerating ? "Generando…" : "Generar guía"}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      {labelUrl && (
+        <a
+          className="btn btn--info btn--sm"
+          href={labelUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span className="btn__icon" aria-hidden="true">
+            👁
+          </span>
+          Ver guía
+        </a>
+      )}
+      {labelUrl && (
+        <button
+          type="button"
+          className="btn btn--info btn--sm"
+          onClick={() => onDownload(deal)}
+          disabled={isDownloadingThis || downloadLocked}
+        >
+          {isDownloadingThis ? (
+            <span className="spinner spinner--sm" aria-hidden="true" />
+          ) : (
+            <span className="btn__icon" aria-hidden="true">
+              ⬇
+            </span>
+          )}
+          {isDownloadingThis ? "Descargando…" : "Descargar PDF"}
+        </button>
+      )}
+      {showTrack && (
+        <button
+          type="button"
+          className="btn btn--info btn--sm"
+          onClick={() => onTrack(deal)}
+          disabled={isTrackFetching}
+        >
+          {isTrackFetching ? (
+            <span className="spinner spinner--sm" aria-hidden="true" />
+          ) : (
+            <span className="btn__icon" aria-hidden="true">
+              📍
+            </span>
+          )}
+          Rastrear guía
+        </button>
+      )}
+      <button
+        type="button"
+        className="btn btn--warn btn--sm"
+        onClick={() => onGenerate(deal)}
+        disabled={isGenerating || generationLocked}
+      >
+        {isGenerating ? (
+          <span className="spinner spinner--sm" aria-hidden="true" />
+        ) : (
+          <span className="btn__icon" aria-hidden="true">
+            🔄
+          </span>
+        )}
+        {isGenerating ? "Generando…" : "Regenerar guía"}
+      </button>
+    </>
+  );
+}
+
+/** Desktop table row. */
+function DealRow({ deal, isCurrent, actionsProps }) {
+  const status = deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS];
+  const ciudad = deal[DEAL_FIELDS.CIUDAD];
+  const estado = deal[DEAL_FIELDS.ESTADO];
+  const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
+  const hasGuide = dealHasGuide(deal);
+  const subline = dealSubline(deal);
+  const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide);
+  const rowClass = [isCurrent ? "is-current" : null, dateClass]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <tr className={rowClass || undefined}>
+      <td>
+        <div className="deals-list__name">
+          {deal[DEAL_FIELDS.NAME] || "(Sin nombre)"}
+        </div>
+        {subline && <div className="deals-list__sub">{subline}</div>}
+      </td>
+      <td>{deal[DEAL_FIELDS.NUMERO_DE_ORDEN] || "—"}</td>
+      <td>{formatStageOrPlaceholder(deal[DEAL_FIELDS.STAGE])}</td>
+      <td>{destino}</td>
+      <td>{formatDateTime(deal[DEAL_FIELDS.FECHA_Y_HORA])}</td>
+      <td>
+        <span className={`pill ${shipmentStatusModifier(status)}`}>
+          {shipmentStatusLabel(status)}
+        </span>
+      </td>
+      <td>{formatDate(deal[DEAL_FIELDS.MODIFIED_TIME])}</td>
+      <td className="deals-list__actions">
+        <DealActions deal={deal} {...actionsProps} />
+      </td>
+    </tr>
+  );
+}
+
+/** Mobile card: name + status + actions, with an expandable details block. */
+function DealCard({
+  deal,
+  isCurrent,
+  isExpanded,
+  onToggleExpand,
+  actionsProps,
+}) {
+  const id = deal[DEAL_FIELDS.ID];
+  const status = deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS];
+  const ciudad = deal[DEAL_FIELDS.CIUDAD];
+  const estado = deal[DEAL_FIELDS.ESTADO];
+  const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
+  const hasGuide = dealHasGuide(deal);
+  const subline = dealSubline(deal);
+  const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide);
+  const cardClass = [
+    "deals-list__card",
+    isCurrent ? "is-current" : null,
+    dateClass,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div className={cardClass}>
+      <div className="deals-list__card-head">
+        <div className="deals-list__name">
+          {deal[DEAL_FIELDS.NAME] || "(Sin nombre)"}
+        </div>
+        <span className={`pill ${shipmentStatusModifier(status)}`}>
+          {shipmentStatusLabel(status)}
+        </span>
+      </div>
+      {subline && <div className="deals-list__sub">{subline}</div>}
+      <div className="deals-list__card-actions">
+        <DealActions deal={deal} {...actionsProps} />
+      </div>
+      <button
+        type="button"
+        className="deals-list__details-toggle"
+        onClick={() => onToggleExpand(id)}
+        aria-expanded={isExpanded}
+      >
+        {isExpanded ? "Ocultar detalles ▲" : "Detalles ▼"}
+      </button>
+      {isExpanded && (
+        <dl className="deals-list__card-details">
+          <div>
+            <dt>Número de orden</dt>
+            <dd>{deal[DEAL_FIELDS.NUMERO_DE_ORDEN] || "—"}</dd>
+          </div>
+          <div>
+            <dt>Etapa</dt>
+            <dd>{formatStageOrPlaceholder(deal[DEAL_FIELDS.STAGE])}</dd>
+          </div>
+          <div>
+            <dt>Destino</dt>
+            <dd>{destino}</dd>
+          </div>
+          <div>
+            <dt>Fecha y hora</dt>
+            <dd>{formatDateTime(deal[DEAL_FIELDS.FECHA_Y_HORA])}</dd>
+          </div>
+          <div>
+            <dt>Actualizado</dt>
+            <dd>{formatDate(deal[DEAL_FIELDS.MODIFIED_TIME])}</dd>
+          </div>
+        </dl>
+      )}
+    </div>
+  );
+}
+
 export default function DealsList({ initialRecordId }) {
   const {
     deals,
@@ -110,7 +347,17 @@ export default function DealsList({ initialRecordId }) {
   const [actionError, setActionError] = useState(null);
   const [trackingFetchId, setTrackingFetchId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
   const trackingUrlCache = useRef(new Map());
+
+  const toggleExpand = (id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleGenerateLabel = async (deal) => {
     const dealId = deal[DEAL_FIELDS.ID];
@@ -247,6 +494,19 @@ export default function DealsList({ initialRecordId }) {
     return [...deals].sort((a, b) => priority(a) - priority(b));
   }, [deals]);
 
+  const actionsProps = {
+    generatingId,
+    trackingFetchId,
+    downloadingId,
+    trackingUrlCache,
+    onGenerate: handleGenerateLabel,
+    onTrack: handleTrack,
+    onDownload: handleDownloadPdf,
+  };
+
+  const isEmpty = !loading && deals.length === 0;
+  const isInitialLoading = loading && deals.length === 0;
+
   return (
     <div className="deals-list">
       <header className="topbar">
@@ -359,7 +619,7 @@ export default function DealsList({ initialRecordId }) {
         </div>
       )}
 
-      <div className="card deals-list__table-wrap">
+      <div className="deals-list__results">
         {generatingId && (
           <div
             className="deals-list__overlay"
@@ -372,186 +632,54 @@ export default function DealsList({ initialRecordId }) {
             </span>
           </div>
         )}
-        {loading && deals.length === 0 ? (
-          <div className="deals-list__state">Cargando deals…</div>
-        ) : !loading && deals.length === 0 ? (
-          <div className="deals-list__state empty">
+        {isInitialLoading ? (
+          <div className="card deals-list__state">Cargando deals…</div>
+        ) : isEmpty ? (
+          <div className="card deals-list__state empty">
             No se encontraron deals con los filtros actuales.
           </div>
         ) : (
-          <table className="list__table">
-            <thead>
-              <tr>
-                <th>Deal</th>
-                <th>Número de Orden</th>
-                <th>Etapa</th>
-                <th>Destino</th>
-                <th>Fecha y hora</th>
-                <th>Estatus envío</th>
-                <th>Actualizado</th>
-                <th aria-label="Acciones" />
-              </tr>
-            </thead>
-            <tbody>
-              {sortedDeals.map((deal) => {
-                const id = deal[DEAL_FIELDS.ID];
-                const isCurrent = id === initialRecordId;
-                const status = deal[DEAL_FIELDS.ENVIA_SHIPMENT_STATUS];
-                const ciudad = deal[DEAL_FIELDS.CIUDAD];
-                const estado = deal[DEAL_FIELDS.ESTADO];
-                const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
-                const hasGuide = dealHasGuide(deal);
-                const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
-                const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
-                const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
-                const orden = deal[DEAL_FIELDS.NUMERO_DE_ORDEN];
-                const cachedTrackUrl = trackingUrlCache.current.get(id);
-                const fallbackTrackUrl = trackingUrlFor(carrier, tracking);
-                const showTrack =
-                  hasGuide && Boolean(cachedTrackUrl || fallbackTrackUrl);
-                const isTrackFetching = trackingFetchId === id;
-                const isDownloadingThis = downloadingId === id;
-                const downloadLocked = Boolean(downloadingId);
-                const isGenerating = generatingId === id;
-                const generationLocked = Boolean(generatingId);
-                const dateClass = rowDateClass(
-                  deal[DEAL_FIELDS.FECHA_Y_HORA],
-                  hasGuide,
-                );
-                const rowClass = [
-                  isCurrent ? "is-current" : null,
-                  dateClass,
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                return (
-                  <tr key={id} className={rowClass || undefined}>
-                    <td>
-                      <div className="deals-list__name">
-                        {deal[DEAL_FIELDS.NAME] || "(Sin nombre)"}
-                      </div>
-                      {(carrier || tracking) && (
-                        <div className="deals-list__sub">
-                          {[
-                            carrier ? carrierLabel(carrier) : null,
-                            tracking ? `Tracking: ${tracking}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                      )}
-                    </td>
-                    <td>{orden || "—"}</td>
-                    <td>{formatStageOrPlaceholder(deal[DEAL_FIELDS.STAGE])}</td>
-                    <td>{destino}</td>
-                    <td>{formatDateTime(deal[DEAL_FIELDS.FECHA_Y_HORA])}</td>
-                    <td>
-                      <span className={`pill ${shipmentStatusModifier(status)}`}>
-                        {shipmentStatusLabel(status)}
-                      </span>
-                    </td>
-                    <td>{formatDate(deal[DEAL_FIELDS.MODIFIED_TIME])}</td>
-                    <td className="deals-list__actions">
-                      {hasGuide ? (
-                        <>
-                          {labelUrl && (
-                            <a
-                              className="btn btn--info btn--sm"
-                              href={labelUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <span className="btn__icon" aria-hidden="true">
-                                👁
-                              </span>
-                              Ver guía
-                            </a>
-                          )}
-                          {labelUrl && (
-                            <button
-                              type="button"
-                              className="btn btn--info btn--sm"
-                              onClick={() => handleDownloadPdf(deal)}
-                              disabled={isDownloadingThis || downloadLocked}
-                            >
-                              {isDownloadingThis ? (
-                                <span
-                                  className="spinner spinner--sm"
-                                  aria-hidden="true"
-                                />
-                              ) : (
-                                <span className="btn__icon" aria-hidden="true">
-                                  ⬇
-                                </span>
-                              )}
-                              {isDownloadingThis ? "Descargando…" : "Descargar PDF"}
-                            </button>
-                          )}
-                          {showTrack && (
-                            <button
-                              type="button"
-                              className="btn btn--info btn--sm"
-                              onClick={() => handleTrack(deal)}
-                              disabled={isTrackFetching}
-                            >
-                              {isTrackFetching ? (
-                                <span
-                                  className="spinner spinner--sm"
-                                  aria-hidden="true"
-                                />
-                              ) : (
-                                <span className="btn__icon" aria-hidden="true">
-                                  📍
-                                </span>
-                              )}
-                              Rastrear guía
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn btn--warn btn--sm"
-                            onClick={() => handleGenerateLabel(deal)}
-                            disabled={isGenerating || generationLocked}
-                          >
-                            {isGenerating ? (
-                              <span
-                                className="spinner spinner--sm"
-                                aria-hidden="true"
-                              />
-                            ) : (
-                              <span className="btn__icon" aria-hidden="true">
-                                🔄
-                              </span>
-                            )}
-                            {isGenerating ? "Generando…" : "Regenerar guía"}
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn--success btn--sm"
-                          onClick={() => handleGenerateLabel(deal)}
-                          disabled={isGenerating || generationLocked}
-                        >
-                          {isGenerating ? (
-                            <span
-                              className="spinner spinner--sm"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <span className="btn__icon" aria-hidden="true">
-                              📦
-                            </span>
-                          )}
-                          {isGenerating ? "Generando…" : "Generar guía"}
-                        </button>
-                      )}
-                    </td>
+          <>
+            <div className="card deals-list__table-wrap">
+              <table className="list__table">
+                <thead>
+                  <tr>
+                    <th>Deal</th>
+                    <th>Número de Orden</th>
+                    <th>Etapa</th>
+                    <th>Destino</th>
+                    <th>Fecha y hora</th>
+                    <th>Estatus envío</th>
+                    <th>Actualizado</th>
+                    <th aria-label="Acciones" />
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {sortedDeals.map((deal) => (
+                    <DealRow
+                      key={deal[DEAL_FIELDS.ID]}
+                      deal={deal}
+                      isCurrent={deal[DEAL_FIELDS.ID] === initialRecordId}
+                      actionsProps={actionsProps}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="deals-list__cards">
+              {sortedDeals.map((deal) => (
+                <DealCard
+                  key={deal[DEAL_FIELDS.ID]}
+                  deal={deal}
+                  isCurrent={deal[DEAL_FIELDS.ID] === initialRecordId}
+                  isExpanded={expandedIds.has(deal[DEAL_FIELDS.ID])}
+                  onToggleExpand={toggleExpand}
+                  actionsProps={actionsProps}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
 
