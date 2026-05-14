@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import useDealsList from "../hooks/useDealsList";
 import useDealsStats from "../hooks/useDealsStats";
 import {
@@ -16,7 +16,12 @@ import {
   shipmentStatusModifier,
   trackingUrlFor,
 } from "../utils/formatters";
-import { executeFunction, normalizeError, parseOutput } from "../utils/zohoApi";
+import {
+  executeFunction,
+  getDeal,
+  normalizeError,
+  parseOutput,
+} from "../utils/zohoApi";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "", label: "Todos los estatus" },
@@ -103,6 +108,8 @@ export default function DealsList({ initialRecordId }) {
 
   const [generatingId, setGeneratingId] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [trackingFetchId, setTrackingFetchId] = useState(null);
+  const trackingUrlCache = useRef(new Map());
 
   const handleGenerateLabel = async (deal) => {
     const dealId = deal[DEAL_FIELDS.ID];
@@ -138,13 +145,55 @@ export default function DealsList({ initialRecordId }) {
       }
 
       console.log("[envia_generate_label] success payload:", parsed);
-      await refreshDeal(dealId);
+      const fresh = await refreshDeal(dealId);
+      if (fresh) {
+        trackingUrlCache.current.set(
+          dealId,
+          fresh[DEAL_FIELDS.ENVIA_TRACKING_URL] || null,
+        );
+      }
       reloadStats();
     } catch (err) {
       console.error("[DealsList] envia_generate_label failed:", err);
       setActionError(normalizeError(err, "No se pudo generar la guía"));
     } finally {
       setGeneratingId(null);
+    }
+  };
+
+  const handleTrack = async (deal) => {
+    const id = deal[DEAL_FIELDS.ID];
+    const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
+    const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
+
+    let persistedUrl = trackingUrlCache.current.get(id);
+
+    if (persistedUrl === undefined) {
+      setTrackingFetchId(id);
+      try {
+        const fresh = await getDeal(id);
+        persistedUrl = fresh?.[DEAL_FIELDS.ENVIA_TRACKING_URL] || null;
+        trackingUrlCache.current.set(id, persistedUrl);
+      } catch (err) {
+        console.error("[tracking] getDeal failed:", err);
+        persistedUrl = null;
+      } finally {
+        setTrackingFetchId(null);
+      }
+    }
+
+    const finalUrl = persistedUrl || trackingUrlFor(carrier, tracking);
+    console.log("[tracking] carrier:", carrier);
+    console.log("[tracking] trackingUrl:", finalUrl);
+
+    if (finalUrl) {
+      window.open(finalUrl, "_blank", "noopener,noreferrer");
+    } else {
+      setActionError(
+        normalizeError(
+          new Error("No hay URL de rastreo disponible para esta guía"),
+        ),
+      );
     }
   };
 
@@ -319,11 +368,11 @@ export default function DealsList({ initialRecordId }) {
                 const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
                 const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
                 const orden = deal[DEAL_FIELDS.NUMERO_DE_ORDEN];
-                const persistedTrackingUrl =
-                  deal[DEAL_FIELDS.ENVIA_TRACKING_URL];
-                const trackUrl =
-                  persistedTrackingUrl ||
-                  trackingUrlFor(carrier, tracking);
+                const cachedTrackUrl = trackingUrlCache.current.get(id);
+                const fallbackTrackUrl = trackingUrlFor(carrier, tracking);
+                const showTrack =
+                  hasGuide && Boolean(cachedTrackUrl || fallbackTrackUrl);
+                const isTrackFetching = trackingFetchId === id;
                 const isGenerating = generatingId === id;
                 const generationLocked = Boolean(generatingId);
                 const dateClass = rowDateClass(
@@ -391,23 +440,23 @@ export default function DealsList({ initialRecordId }) {
                               Descargar PDF
                             </a>
                           )}
-                          {trackUrl && (
+                          {showTrack && (
                             <button
                               type="button"
                               className="btn btn--info btn--sm"
-                              onClick={() => {
-                                console.log("[tracking] carrier:", carrier);
-                                console.log("[tracking] trackingUrl:", trackUrl);
-                                window.open(
-                                  trackUrl,
-                                  "_blank",
-                                  "noopener,noreferrer",
-                                );
-                              }}
+                              onClick={() => handleTrack(deal)}
+                              disabled={isTrackFetching}
                             >
-                              <span className="btn__icon" aria-hidden="true">
-                                📍
-                              </span>
+                              {isTrackFetching ? (
+                                <span
+                                  className="spinner spinner--sm"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <span className="btn__icon" aria-hidden="true">
+                                  📍
+                                </span>
+                              )}
                               Rastrear guía
                             </button>
                           )}
