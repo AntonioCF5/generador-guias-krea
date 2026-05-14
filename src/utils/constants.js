@@ -36,7 +36,7 @@ export const DEAL_FIELDS = {
   ENVIA_CARRIER: "Paqueteria",
   ENVIA_SERVICE: "Envia_Service",
   ENVIA_LABEL_URL: "Envia_Label_URL",
-  ENVIA_TRACKING_URL: "Envia_Tracking_URL",
+  ENVIA_TRACKING_URL: "URL_de_rastreo",
   ENVIA_LABEL_GENERATED_AT: "Envia_Label_Generated_At",
   ENVIA_SHIPMENT_STATUS: "Envia_Shipment_Status",
   ENVIA_SHIPPING_COST: "Envia_Shipping_Cost",
