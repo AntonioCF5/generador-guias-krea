@@ -22,6 +22,9 @@ export const CUADRO_FIELDS = {
   INTEGRANTES_NOMBRES: "Integrantes_Nombres",
 };
 
+// Material is a lookup on the subform; .name holds the displayable label.
+export const CUADRO_MATERIAL_FIELD = "Material";
+
 export const CUADROS_SUBFORM = "Cuadros_Orden";
 
 // Each cuadro is 5 cm thick. Volumetric weight uses the standard

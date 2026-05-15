@@ -15,13 +15,16 @@ function toPositiveNumber(value) {
  * Each unit gets its own stable key so React can list them and so the
  * user can assign them to different shipments.
  */
+// Identify a cuadro by what it physically IS — product/material — not by
+// the integrante that owns the design. Falls back through:
+//   Product.name → Material.name → "Cuadro N".
+// Numero_de_Diseno is intentionally NOT used as the visible label because
+// it doesn't tell the operator what's being shipped.
 function displayNameFor(row, fallbackIdx) {
-  const diseno = row[CUADRO_FIELDS.NUMERO_DE_DISENO];
-  if (diseno) return String(diseno);
-  const integrante = row[CUADRO_FIELDS.INTEGRANTES_NOMBRES];
-  if (integrante) return String(integrante);
   const productName = row[CUADRO_FIELDS.PRODUCT]?.name;
   if (productName) return String(productName);
+  const materialName = row[CUADRO_FIELDS.MATERIAL]?.name;
+  if (materialName) return String(materialName);
   return `Cuadro ${fallbackIdx}`;
 }
 
