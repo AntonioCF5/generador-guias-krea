@@ -17,11 +17,10 @@ import {
   trackingUrlFor,
 } from "../utils/formatters";
 import {
-  executeFunction,
   getDeal,
   normalizeError,
-  parseOutput,
 } from "../utils/zohoApi";
+import GenerateGuideModal from "./GenerateGuideModal";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "", label: "Todos los estatus" },
@@ -348,6 +347,7 @@ export default function DealsList({ initialRecordId }) {
   const [trackingFetchId, setTrackingFetchId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [modalDeal, setModalDeal] = useState(null);
   const trackingUrlCache = useRef(new Map());
 
   const toggleExpand = (id) => {
@@ -359,48 +359,22 @@ export default function DealsList({ initialRecordId }) {
     });
   };
 
-  const handleGenerateLabel = async (deal) => {
-    const dealId = deal[DEAL_FIELDS.ID];
-    console.log(
-      "[envia_generate_label] click recibido para deal:",
-      dealId,
-      "generatingId actual:",
-      generatingId,
-    );
-    if (!dealId || generatingId) return;
-    setGeneratingId(dealId);
+  const handleOpenGenerateModal = (deal) => {
+    if (!deal?.[DEAL_FIELDS.ID] || generatingId) return;
     setActionError(null);
+    setModalDeal(deal);
+  };
+
+  const handleCloseModal = () => {
+    setModalDeal(null);
+  };
+
+  const handleAfterGenerated = async () => {
+    const dealId = modalDeal?.[DEAL_FIELDS.ID];
+    if (!dealId) return;
+    setGeneratingId(dealId);
     try {
-      const argsPayload = { dealId: String(dealId) };
-      console.log(
-        "[envia_generate_label] sending args (BUILD_TAG=dealId-v2):",
-        JSON.stringify(argsPayload),
-      );
-      const res = await executeFunction("envia_generate_label", argsPayload);
-      console.log("[envia_generate_label] raw response:", res);
-      const parsed = parseOutput(res);
-      console.log("[envia_generate_label] parsed envelope:", parsed);
-
-      if (!parsed || parsed.ok !== true) {
-        const msg =
-          parsed?.error?.message ||
-          parsed?.error ||
-          parsed?.message ||
-          "La función devolvió ok=false sin mensaje";
-        throw new Error(
-          typeof msg === "string" ? msg : JSON.stringify(msg),
-        );
-      }
-
-      console.log("[envia_generate_label] success payload:", parsed);
       const fresh = await refreshDeal(dealId);
-      console.log("[refreshDeal] fresh deal fields:", {
-        id: fresh?.[DEAL_FIELDS.ID],
-        Envia_Label_URL: fresh?.[DEAL_FIELDS.ENVIA_LABEL_URL],
-        Numero_de_Guia: fresh?.[DEAL_FIELDS.ENVIA_TRACKING_NUMBER],
-        Paqueteria: fresh?.[DEAL_FIELDS.ENVIA_CARRIER],
-        URL_de_Rastreo: fresh?.[DEAL_FIELDS.ENVIA_TRACKING_URL],
-      });
       if (fresh) {
         trackingUrlCache.current.set(
           dealId,
@@ -408,9 +382,6 @@ export default function DealsList({ initialRecordId }) {
         );
       }
       reloadStats();
-    } catch (err) {
-      console.error("[DealsList] envia_generate_label failed:", err);
-      setActionError(normalizeError(err, "No se pudo generar la guía"));
     } finally {
       setGeneratingId(null);
     }
@@ -499,7 +470,7 @@ export default function DealsList({ initialRecordId }) {
     trackingFetchId,
     downloadingId,
     trackingUrlCache,
-    onGenerate: handleGenerateLabel,
+    onGenerate: handleOpenGenerateModal,
     onTrack: handleTrack,
     onDownload: handleDownloadPdf,
   };
@@ -708,6 +679,13 @@ export default function DealsList({ initialRecordId }) {
           </button>
         </div>
       </footer>
+
+      <GenerateGuideModal
+        deal={modalDeal}
+        isOpen={Boolean(modalDeal)}
+        onClose={handleCloseModal}
+        onGenerated={handleAfterGenerated}
+      />
     </div>
   );
 }
