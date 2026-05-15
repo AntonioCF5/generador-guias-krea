@@ -12,6 +12,7 @@ import {
   parseOutput,
   updateRecord,
 } from "../utils/zohoApi";
+import useShipments from "../hooks/useShipments";
 
 function toNumberOrEmpty(value) {
   if (value === null || value === undefined || value === "") return "";
@@ -93,6 +94,22 @@ function diffDealPackage(deal, draft) {
   return patch;
 }
 
+function draftFromShipment(shipment) {
+  return {
+    ...emptyDraft(),
+    weight: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_WEIGHT_KG]),
+    length: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_LENGTH_CM]),
+    width: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_WIDTH_CM]),
+    height: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_HEIGHT_CM]),
+    declaredValue: toNumberOrEmpty(
+      shipment[SHIPMENT_FIELDS.PACKAGE_DECLARED_VALUE],
+    ),
+    description: shipment[SHIPMENT_FIELDS.PACKAGE_CONTENT] || "",
+    shipmentId: shipment[SHIPMENT_FIELDS.ID] || null,
+    status: "draft",
+  };
+}
+
 function shipmentPayload(draft, index, dealId) {
   const payload = {
     [SHIPMENT_FIELDS.DEAL]: dealId,
@@ -110,21 +127,36 @@ function shipmentPayload(draft, index, dealId) {
 }
 
 export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated }) {
-  const [mode, setMode] = useState("single");
+  const isDealMulti =
+    Number(deal?.[DEAL_FIELDS.TOTAL_GUIAS]) > 1;
+  const [mode, setMode] = useState(isDealMulti ? "multi" : "single");
   const [shipments, setShipments] = useState(() => [draftFromDeal(deal)]);
   const [generating, setGenerating] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(null);
   const [globalError, setGlobalError] = useState(null);
   const firstInputRef = useRef(null);
 
+  const {
+    shipments: existingShipments,
+    loading: loadingExisting,
+  } = useShipments(deal?.[DEAL_FIELDS.ID], isOpen && isDealMulti);
+
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    setGlobalError(null);
+    setCurrentIndex(null);
+    if (isDealMulti) {
+      setMode("multi");
+      if (existingShipments.length > 0) {
+        setShipments(existingShipments.map((s) => draftFromShipment(s)));
+      } else {
+        setShipments([draftFromDeal(deal)]);
+      }
+    } else {
       setMode("single");
       setShipments([draftFromDeal(deal)]);
-      setGlobalError(null);
-      setCurrentIndex(null);
     }
-  }, [isOpen, deal]);
+  }, [isOpen, deal, isDealMulti, existingShipments]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -442,21 +474,26 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
             </div>
           )}
 
-          {shipments.map((draft, index) => (
-            <DraftCard
-              key={index}
-              index={index}
-              total={shipments.length}
-              draft={draft}
-              errors={perDraftErrors[index]}
-              isFocused={index === 0}
-              firstInputRef={index === 0 ? firstInputRef : null}
-              isCurrent={currentIndex === index}
-              disabled={generating || draft.status === "ok"}
-              onChange={(patch) => updateDraft(index, patch)}
-              showStatus={mode === "multi"}
-            />
-          ))}
+          {loadingExisting && isDealMulti && (
+            <div className="deals-list__state">Cargando guías existentes…</div>
+          )}
+
+          {!loadingExisting &&
+            shipments.map((draft, index) => (
+              <DraftCard
+                key={index}
+                index={index}
+                total={shipments.length}
+                draft={draft}
+                errors={perDraftErrors[index]}
+                isFocused={index === 0}
+                firstInputRef={index === 0 ? firstInputRef : null}
+                isCurrent={currentIndex === index}
+                disabled={generating || draft.status === "ok"}
+                onChange={(patch) => updateDraft(index, patch)}
+                showStatus={mode === "multi"}
+              />
+            ))}
 
           {globalError && (
             <div className="alert alert--err" role="alert">
