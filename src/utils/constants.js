@@ -1,7 +1,10 @@
 export const MODULES = {
   DEALS: "Deals",
   CONTACTS: "Contacts",
+  ENVIA_SHIPMENTS: "Envia_Shipments",
 };
+
+export const MAX_SHIPMENTS_PER_DEAL = 10;
 
 export const DEAL_FIELDS = {
   ID: "id",
@@ -40,6 +43,34 @@ export const DEAL_FIELDS = {
   ENVIA_LABEL_GENERATED_AT: "Envia_Label_Generated_At",
   ENVIA_SHIPMENT_STATUS: "Envia_Shipment_Status",
   ENVIA_SHIPPING_COST: "Envia_Shipping_Cost",
+
+  // Counter for multi-guide deals. >1 activates the multi view in the list.
+  TOTAL_GUIAS: "Total_Guias",
+};
+
+export const SHIPMENT_FIELDS = {
+  ID: "id",
+  NAME: "Name",
+  DEAL: "Deal",
+  SHIPMENT_INDEX: "Shipment_Index",
+
+  PACKAGE_WEIGHT_KG: "Package_Weight_Kg",
+  PACKAGE_LENGTH_CM: "Package_Length_Cm",
+  PACKAGE_WIDTH_CM: "Package_Width_Cm",
+  PACKAGE_HEIGHT_CM: "Package_Height_Cm",
+  PACKAGE_CONTENT: "Package_Content_Description",
+  PACKAGE_DECLARED_VALUE: "Package_Declared_Value",
+
+  ENVIA_SHIPMENT_ID: "Envia_Shipment_ID",
+  ENVIA_TRACKING_NUMBER: "Numero_de_Guia",
+  ENVIA_CARRIER: "Paqueteria",
+  ENVIA_SERVICE: "Envia_Service",
+  ENVIA_LABEL_URL: "Envia_Label_URL",
+  ENVIA_TRACKING_URL: "URL_de_Rastreo",
+  ENVIA_LABEL_GENERATED_AT: "Envia_Label_Generated_At",
+  ENVIA_SHIPMENT_STATUS: "Envia_Shipment_Status",
+  ENVIA_SHIPPING_COST: "Envia_Shipping_Cost",
+  LAST_ERROR: "Last_Error",
 };
 
 export const CONTACT_FIELDS = {

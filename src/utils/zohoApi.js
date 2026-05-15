@@ -28,6 +28,38 @@ export async function searchDealsByCOQL(selectQuery) {
   return res?.data ?? [];
 }
 
+export async function coqlQuery(selectQuery) {
+  const res = await ZOHO.CRM.API.coql({ select_query: selectQuery });
+  return res?.data ?? [];
+}
+
+export async function insertRecord(entity, data) {
+  const res = await ZOHO.CRM.API.insertRecord({
+    Entity: entity,
+    APIData: { data: [data] },
+    Trigger: ["workflow"],
+  });
+  const row = res?.data?.[0];
+  if (row?.code && row.code !== "SUCCESS") {
+    throw new Error(row.message || row.code);
+  }
+  return row?.details?.id || row?.details?.ID || null;
+}
+
+export async function updateRecord(entity, recordId, data) {
+  const res = await ZOHO.CRM.API.updateRecord({
+    Entity: entity,
+    RecordID: recordId,
+    APIData: { data: [data] },
+    Trigger: ["workflow"],
+  });
+  const row = res?.data?.[0];
+  if (row?.code && row.code !== "SUCCESS") {
+    throw new Error(row.message || row.code);
+  }
+  return row?.details ?? null;
+}
+
 export async function coqlCount(selectQuery) {
   const res = await ZOHO.CRM.API.coql({ select_query: selectQuery });
   const row = res?.data?.[0];

@@ -111,3 +111,9 @@ export function trackingUrlFor(carrier, trackingNumber) {
   if (!template) return null;
   return template(String(trackingNumber).trim());
 }
+
+export function shipmentCountLabel(count) {
+  const n = Number(count);
+  if (!Number.isFinite(n) || n <= 1) return null;
+  return `${n} guías`;
+}
