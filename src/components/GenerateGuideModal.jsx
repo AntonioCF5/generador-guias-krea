@@ -12,151 +12,102 @@ import {
   parseOutput,
   updateRecord,
 } from "../utils/zohoApi";
-import useShipments from "../hooks/useShipments";
+import useDealCuadros from "../hooks/useDealCuadros";
+import { totalsForUnits } from "../utils/cuadroCalc";
 
-function toNumberOrEmpty(value) {
-  if (value === null || value === undefined || value === "") return "";
-  const n = Number(value);
-  return Number.isFinite(n) ? n : "";
-}
+const UNASSIGNED = -1;
 
-function emptyDraft() {
-  return {
-    weight: "",
-    length: "",
-    width: "",
-    height: "",
-    declaredValue: "",
-    description: "",
-    status: "draft",
-    shipmentId: null,
-    result: null,
-    errorMsg: null,
-  };
-}
-
-function draftFromDeal(deal) {
-  return {
-    ...emptyDraft(),
-    weight: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_WEIGHT_KG]),
-    length: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_LENGTH_CM]),
-    width: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_WIDTH_CM]),
-    height: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_HEIGHT_CM]),
-    declaredValue: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_DECLARED_VALUE]),
-    description: deal?.[DEAL_FIELDS.PACKAGE_CONTENT] || "",
-  };
-}
-
-function draftFromDealForChild(deal, totalCount) {
-  const totalWeight = Number(deal?.[DEAL_FIELDS.PACKAGE_WEIGHT_KG]) || 0;
-  const perGuide = totalCount > 0 ? totalWeight / totalCount : 0;
-  return {
-    ...emptyDraft(),
-    weight: perGuide > 0 ? Number(perGuide.toFixed(2)) : "",
-    length: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_LENGTH_CM]),
-    width: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_WIDTH_CM]),
-    height: toNumberOrEmpty(deal?.[DEAL_FIELDS.PACKAGE_HEIGHT_CM]),
-    declaredValue: "",
-    description: "",
-  };
-}
-
-function validateDraft(draft) {
-  const errors = {};
-  if (!(Number(draft.weight) > 0)) errors.weight = "Peso > 0";
-  if (!(Number(draft.length) > 0)) errors.length = "Largo > 0";
-  if (!(Number(draft.width) > 0)) errors.width = "Ancho > 0";
-  if (!(Number(draft.height) > 0)) errors.height = "Alto > 0";
-  if (!draft.description || !draft.description.trim()) {
-    errors.description = "Descripción requerida";
-  }
-  return errors;
-}
-
-function diffDealPackage(deal, draft) {
-  const target = {
-    [DEAL_FIELDS.PACKAGE_WEIGHT_KG]: Number(draft.weight),
-    [DEAL_FIELDS.PACKAGE_LENGTH_CM]: Number(draft.length),
-    [DEAL_FIELDS.PACKAGE_WIDTH_CM]: Number(draft.width),
-    [DEAL_FIELDS.PACKAGE_HEIGHT_CM]: Number(draft.height),
-    [DEAL_FIELDS.PACKAGE_CONTENT]: draft.description.trim(),
-  };
-  if (draft.declaredValue !== "" && draft.declaredValue !== null) {
-    target[DEAL_FIELDS.PACKAGE_DECLARED_VALUE] = Number(draft.declaredValue);
-  }
-  const patch = {};
-  for (const [key, value] of Object.entries(target)) {
-    const current = deal?.[key];
-    if (current !== value && !(current == null && value === "")) {
-      patch[key] = value;
+function buildAssignmentState(units, count, prevAssignments = null) {
+  const next = {};
+  units.forEach((u) => {
+    const prev = prevAssignments ? prevAssignments[u.key] : undefined;
+    if (
+      count === 1 ||
+      (Number.isInteger(prev) && prev >= 0 && prev < count)
+    ) {
+      next[u.key] = count === 1 ? 0 : prev;
+    } else {
+      next[u.key] = UNASSIGNED;
     }
-  }
-  return patch;
+  });
+  return next;
 }
 
-function draftFromShipment(shipment) {
+function unitsForBucket(units, assignments, bucketIdx) {
+  return units.filter((u) => assignments[u.key] === bucketIdx);
+}
+
+function unassignedCount(units, assignments) {
+  return units.filter((u) => assignments[u.key] === UNASSIGNED).length;
+}
+
+function emptyBucketsCount(units, assignments, totalBuckets) {
+  let empty = 0;
+  for (let i = 0; i < totalBuckets; i += 1) {
+    if (unitsForBucket(units, assignments, i).length === 0) empty += 1;
+  }
+  return empty;
+}
+
+function dealsPackagePatch(totals) {
   return {
-    ...emptyDraft(),
-    weight: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_WEIGHT_KG]),
-    length: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_LENGTH_CM]),
-    width: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_WIDTH_CM]),
-    height: toNumberOrEmpty(shipment[SHIPMENT_FIELDS.PACKAGE_HEIGHT_CM]),
-    declaredValue: toNumberOrEmpty(
-      shipment[SHIPMENT_FIELDS.PACKAGE_DECLARED_VALUE],
-    ),
-    description: shipment[SHIPMENT_FIELDS.PACKAGE_CONTENT] || "",
-    shipmentId: shipment[SHIPMENT_FIELDS.ID] || null,
-    status: "draft",
+    [DEAL_FIELDS.PACKAGE_WEIGHT_KG]: totals.weight,
+    [DEAL_FIELDS.PACKAGE_LENGTH_CM]: totals.length,
+    [DEAL_FIELDS.PACKAGE_WIDTH_CM]: totals.width,
+    [DEAL_FIELDS.PACKAGE_HEIGHT_CM]: totals.height,
+    [DEAL_FIELDS.PACKAGE_CONTENT]: totals.description,
   };
 }
 
-function shipmentPayload(draft, index, dealId) {
-  const payload = {
+function shipmentPayloadFor(totals, index, dealId) {
+  return {
     [SHIPMENT_FIELDS.DEAL]: dealId,
     [SHIPMENT_FIELDS.SHIPMENT_INDEX]: index + 1,
-    [SHIPMENT_FIELDS.PACKAGE_WEIGHT_KG]: Number(draft.weight),
-    [SHIPMENT_FIELDS.PACKAGE_LENGTH_CM]: Number(draft.length),
-    [SHIPMENT_FIELDS.PACKAGE_WIDTH_CM]: Number(draft.width),
-    [SHIPMENT_FIELDS.PACKAGE_HEIGHT_CM]: Number(draft.height),
-    [SHIPMENT_FIELDS.PACKAGE_CONTENT]: draft.description.trim(),
+    [SHIPMENT_FIELDS.PACKAGE_WEIGHT_KG]: totals.weight,
+    [SHIPMENT_FIELDS.PACKAGE_LENGTH_CM]: totals.length,
+    [SHIPMENT_FIELDS.PACKAGE_WIDTH_CM]: totals.width,
+    [SHIPMENT_FIELDS.PACKAGE_HEIGHT_CM]: totals.height,
+    [SHIPMENT_FIELDS.PACKAGE_CONTENT]: totals.description,
   };
-  if (draft.declaredValue !== "" && draft.declaredValue !== null) {
-    payload[SHIPMENT_FIELDS.PACKAGE_DECLARED_VALUE] = Number(draft.declaredValue);
-  }
-  return payload;
 }
 
 export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated }) {
-  const isDealMulti =
-    Number(deal?.[DEAL_FIELDS.TOTAL_GUIAS]) > 1;
+  const dealId = deal?.[DEAL_FIELDS.ID];
+  const isDealMulti = Number(deal?.[DEAL_FIELDS.TOTAL_GUIAS]) > 1;
+
+  const { units, loading: loadingCuadros, error: cuadrosError } = useDealCuadros(
+    dealId,
+    isOpen,
+  );
+
   const [mode, setMode] = useState(isDealMulti ? "multi" : "single");
-  const [shipments, setShipments] = useState(() => [draftFromDeal(deal)]);
+  const [count, setCount] = useState(isDealMulti
+    ? Math.max(2, Number(deal?.[DEAL_FIELDS.TOTAL_GUIAS]) || 2)
+    : 1);
+  const [assignments, setAssignments] = useState({});
+  const [shipmentResults, setShipmentResults] = useState({});
   const [generating, setGenerating] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(null);
   const [globalError, setGlobalError] = useState(null);
-  const firstInputRef = useRef(null);
-
-  const {
-    shipments: existingShipments,
-    loading: loadingExisting,
-  } = useShipments(deal?.[DEAL_FIELDS.ID], isOpen && isDealMulti);
 
   useEffect(() => {
     if (!isOpen) return;
     setGlobalError(null);
     setCurrentIndex(null);
-    if (isDealMulti) {
-      setMode("multi");
-      if (existingShipments.length > 0) {
-        setShipments(existingShipments.map((s) => draftFromShipment(s)));
-      } else {
-        setShipments([draftFromDeal(deal)]);
-      }
-    } else {
-      setMode("single");
-      setShipments([draftFromDeal(deal)]);
-    }
-  }, [isOpen, deal, isDealMulti, existingShipments]);
+    setShipmentResults({});
+    const desiredCount = Number(deal?.[DEAL_FIELDS.TOTAL_GUIAS]) || 2;
+    const upperBound = Math.min(
+      MAX_SHIPMENTS_PER_DEAL,
+      Math.max(2, units.length),
+    );
+    const initialCount = isDealMulti
+      ? Math.max(2, Math.min(upperBound, desiredCount))
+      : 1;
+    const initialMode = isDealMulti && units.length >= 2 ? "multi" : "single";
+    setMode(initialMode);
+    setCount(initialMode === "multi" ? initialCount : 1);
+    setAssignments(buildAssignmentState(units, initialMode === "multi" ? initialCount : 1));
+  }, [isOpen, deal, isDealMulti, units]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -164,97 +115,62 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
       if (event.key === "Escape" && !generating) onClose();
     };
     document.addEventListener("keydown", onKey);
-    if (firstInputRef.current) firstInputRef.current.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [isOpen, generating, onClose]);
 
-  const perDraftErrors = useMemo(
-    () => shipments.map((s) => validateDraft(s)),
-    [shipments],
-  );
-  const allValid = perDraftErrors.every((e) => Object.keys(e).length === 0);
-  const okCount = shipments.filter((s) => s.status === "ok").length;
-  const errorCount = shipments.filter((s) => s.status === "error").length;
-  const hasFailures = errorCount > 0;
-  const allOk = shipments.length > 0 && okCount === shipments.length;
+  const bucketTotals = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < count; i += 1) {
+      out.push(totalsForUnits(unitsForBucket(units, assignments, i)));
+    }
+    return out;
+  }, [units, assignments, count]);
 
   if (!isOpen) return null;
 
-  const updateDraft = (index, patch) => {
-    setShipments((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, ...patch } : s)),
-    );
-  };
+  const hasUnits = units.length > 0;
+  const incomplete = units.some((u) => u.incomplete);
+  const pendingUnits = unassignedCount(units, assignments);
+  const emptyBuckets = emptyBucketsCount(units, assignments, count);
 
-  const handleModeChange = (nextMode) => {
-    if (generating || nextMode === mode) return;
-    if (nextMode === "multi") {
-      const totalWeight =
-        Number(deal?.[DEAL_FIELDS.PACKAGE_WEIGHT_KG]) || 0;
-      const half = totalWeight > 0 ? Number((totalWeight / 2).toFixed(2)) : "";
-      setShipments([
-        { ...shipments[0], status: "draft", shipmentId: null, errorMsg: null },
-        {
-          ...draftFromDealForChild(deal, 2),
-          weight: half,
-        },
-      ]);
+  const canGenerate =
+    !generating &&
+    hasUnits &&
+    !incomplete &&
+    (mode === "single"
+      ? true
+      : pendingUnits === 0 && emptyBuckets === 0 && count >= 2);
+
+  const handleModeChange = (next) => {
+    if (generating || next === mode) return;
+    if (next === "multi") {
+      const initial = Math.max(2, count >= 2 ? count : 2);
+      setMode("multi");
+      setCount(initial);
+      setAssignments(buildAssignmentState(units, initial));
     } else {
-      // Going back to single keeps the first draft
-      setShipments([{ ...shipments[0], status: "draft", shipmentId: null, errorMsg: null }]);
+      setMode("single");
+      setCount(1);
+      setAssignments(buildAssignmentState(units, 1));
     }
-    setMode(nextMode);
-    setGlobalError(null);
   };
 
-  const handleCountChange = (nextCount) => {
+  const handleCountChange = (next) => {
     if (generating) return;
-    const clamped = Math.max(2, Math.min(MAX_SHIPMENTS_PER_DEAL, nextCount));
-    if (clamped === shipments.length) return;
-    if (clamped > shipments.length) {
-      const additions = Array.from({ length: clamped - shipments.length }, () =>
-        draftFromDealForChild(deal, clamped),
-      );
-      setShipments((prev) => {
-        const merged = [...prev, ...additions];
-        const totalWeight =
-          Number(deal?.[DEAL_FIELDS.PACKAGE_WEIGHT_KG]) || 0;
-        if (totalWeight > 0) {
-          const per = Number((totalWeight / clamped).toFixed(2));
-          return merged.map((s) =>
-            s.status === "ok"
-              ? s
-              : { ...s, weight: s.weight === "" ? per : s.weight },
-          );
-        }
-        return merged;
-      });
-    } else {
-      const dropping = shipments.slice(clamped);
-      const losingData = dropping.some(
-        (s) =>
-          s.status === "ok" ||
-          s.description?.trim() ||
-          s.weight !== "" ||
-          s.shipmentId,
-      );
-      if (losingData) {
-        const ok = window.confirm(
-          `Se descartarán ${shipments.length - clamped} guías. ¿Continuar?`,
-        );
-        if (!ok) return;
-      }
-      setShipments((prev) => prev.slice(0, clamped));
-    }
+    const clamped = Math.max(2, Math.min(MAX_SHIPMENTS_PER_DEAL, next));
+    if (clamped === count) return;
+    setCount(clamped);
+    setAssignments((prev) => buildAssignmentState(units, clamped, prev));
+  };
+
+  const assignUnit = (unitKey, bucketIdx) => {
+    if (generating) return;
+    setAssignments((prev) => ({ ...prev, [unitKey]: bucketIdx }));
   };
 
   const submitSingle = async () => {
-    const dealId = deal?.[DEAL_FIELDS.ID];
-    const draft = shipments[0];
-    const patch = diffDealPackage(deal, draft);
-    if (Object.keys(patch).length > 0) {
-      await updateRecord(MODULES.DEALS, dealId, patch);
-    }
+    const totals = bucketTotals[0];
+    await updateRecord(MODULES.DEALS, dealId, dealsPackagePatch(totals));
     const res = await executeFunction("envia_generate_label", {
       dealId: String(dealId),
     });
@@ -264,37 +180,24 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
         parsed?.error?.message ||
         parsed?.error ||
         parsed?.message ||
-        "La función devolvió ok=false sin mensaje";
+        "ok=false sin mensaje";
       throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
     }
   };
 
   const submitMulti = async () => {
-    const dealId = deal?.[DEAL_FIELDS.ID];
-    let processedOk = 0;
-    let processedErr = 0;
+    let okCount = 0;
+    let errCount = 0;
+    const results = {};
 
-    for (let i = 0; i < shipments.length; i += 1) {
-      const draft = shipments[i];
-      if (draft.status === "ok") continue;
+    for (let i = 0; i < count; i += 1) {
+      const totals = bucketTotals[i];
       setCurrentIndex(i);
-
       try {
-        let shipmentId = draft.shipmentId;
-        if (!shipmentId) {
-          updateDraft(i, { status: "creating", errorMsg: null });
-          const payload = shipmentPayload(draft, i, dealId);
-          shipmentId = await insertRecord(MODULES.ENVIA_SHIPMENTS, payload);
-          if (!shipmentId) throw new Error("Zoho no devolvió un ID de shipment");
-          updateDraft(i, { shipmentId });
-        } else {
-          updateDraft(i, { status: "creating", errorMsg: null });
-          const payload = shipmentPayload(draft, i, dealId);
-          delete payload[SHIPMENT_FIELDS.DEAL];
-          await updateRecord(MODULES.ENVIA_SHIPMENTS, shipmentId, payload);
-        }
+        const payload = shipmentPayloadFor(totals, i, dealId);
+        const shipmentId = await insertRecord(MODULES.ENVIA_SHIPMENTS, payload);
+        if (!shipmentId) throw new Error("Zoho no devolvió shipmentId");
 
-        updateDraft(i, { status: "generating" });
         const res = await executeFunction(
           "envia_generate_label_for_shipment",
           { shipmentId: String(shipmentId) },
@@ -308,34 +211,31 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
             "ok=false sin mensaje";
           throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
         }
-        updateDraft(i, { status: "ok", result: parsed.data, errorMsg: null });
-        processedOk += 1;
+        results[i] = { status: "ok", data: parsed.data, shipmentId };
+        okCount += 1;
       } catch (err) {
         console.error(`[GenerateGuideModal] shipment ${i + 1} failed:`, err);
-        updateDraft(i, { status: "error", errorMsg: err.message });
-        processedErr += 1;
+        results[i] = { status: "error", error: err.message };
+        errCount += 1;
       }
+      setShipmentResults({ ...results });
     }
 
     setCurrentIndex(null);
 
     try {
       await updateRecord(MODULES.DEALS, dealId, {
-        [DEAL_FIELDS.TOTAL_GUIAS]: shipments.length,
+        [DEAL_FIELDS.TOTAL_GUIAS]: count,
       });
     } catch (err) {
       console.warn("[GenerateGuideModal] Total_Guias update failed:", err);
     }
 
-    return { processedOk, processedErr };
+    return { okCount, errCount };
   };
 
-  const handleSubmit = async (event) => {
-    if (event) event.preventDefault();
-    if (!allValid || generating) return;
-    const dealId = deal?.[DEAL_FIELDS.ID];
-    if (!dealId) return;
-
+  const handleSubmit = async () => {
+    if (!canGenerate) return;
     setGenerating(true);
     setGlobalError(null);
     try {
@@ -344,9 +244,9 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
         await onGenerated();
         onClose();
       } else {
-        const { processedErr } = await submitMulti();
+        const { errCount } = await submitMulti();
         await onGenerated();
-        if (processedErr === 0) onClose();
+        if (errCount === 0) onClose();
       }
     } catch (err) {
       console.error("[GenerateGuideModal] submit failed:", err);
@@ -362,10 +262,7 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
 
   const dealName = deal?.[DEAL_FIELDS.NAME] || "este pedido";
   const orderNumber = deal?.[DEAL_FIELDS.NUMERO_DE_ORDEN];
-  const progressPct =
-    shipments.length === 0
-      ? 0
-      : Math.round(((okCount + errorCount) / shipments.length) * 100);
+  const totalUnits = units.length;
 
   return (
     <div
@@ -415,102 +312,93 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
               aria-selected={mode === "multi"}
               className={`guide-mode-toggle__btn${mode === "multi" ? " is-active" : ""}`}
               onClick={() => handleModeChange("multi")}
-              disabled={generating}
+              disabled={generating || totalUnits < 2}
+              title={totalUnits < 2 ? "Necesitas al menos 2 cuadros" : ""}
             >
               Múltiples guías
             </button>
           </div>
 
-          {mode === "multi" && (
+          {loadingCuadros && (
+            <div className="deals-list__state">Cargando cuadros…</div>
+          )}
+
+          {cuadrosError && (
+            <div className="alert alert--err" role="alert">
+              {cuadrosError.message}
+            </div>
+          )}
+
+          {!loadingCuadros && !hasUnits && (
+            <div className="alert alert--err" role="alert">
+              Este pedido no tiene cuadros capturados en{" "}
+              <strong>Cuadros_Orden</strong>. Agrega al menos un cuadro al
+              Deal antes de generar la guía.
+            </div>
+          )}
+
+          {hasUnits && incomplete && (
+            <div className="alert alert--err" role="alert">
+              Hay cuadros sin medidas (Base o Altura en 0). Completa los
+              datos en el subform <strong>Cuadros_Orden</strong> antes de
+              continuar.
+            </div>
+          )}
+
+          {hasUnits && mode === "multi" && (
             <div className="multi-count">
               <span className="multi-count__label">¿Cuántas guías?</span>
               <div className="multi-count__stepper">
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
-                  onClick={() => handleCountChange(shipments.length - 1)}
-                  disabled={generating || shipments.length <= 2}
-                  aria-label="Menos guías"
+                  onClick={() => handleCountChange(count - 1)}
+                  disabled={generating || count <= 2}
                 >
                   −
                 </button>
-                <span className="multi-count__value">{shipments.length}</span>
+                <span className="multi-count__value">{count}</span>
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
-                  onClick={() => handleCountChange(shipments.length + 1)}
+                  onClick={() => handleCountChange(count + 1)}
                   disabled={
-                    generating || shipments.length >= MAX_SHIPMENTS_PER_DEAL
+                    generating ||
+                    count >= Math.min(MAX_SHIPMENTS_PER_DEAL, totalUnits)
                   }
-                  aria-label="Más guías"
                 >
                   +
                 </button>
               </div>
               <span className="multi-count__hint">
-                Máximo {MAX_SHIPMENTS_PER_DEAL}
+                Máx. {Math.min(MAX_SHIPMENTS_PER_DEAL, totalUnits)} ·{" "}
+                {pendingUnits === 0
+                  ? "Todos los cuadros asignados ✓"
+                  : `${pendingUnits} cuadro${pendingUnits === 1 ? "" : "s"} sin asignar`}
               </span>
             </div>
           )}
 
-          {mode === "single" ? (
-            <p className="modal__hint">
-              Confirma o ajusta los datos del paquete. Se generará{" "}
-              <strong>una sola guía</strong>.
-            </p>
-          ) : (
-            <p className="modal__hint">
-              Captura el contenido y dimensiones de cada paquete. Mismo
-              destinatario, mismo domicilio.
-            </p>
+          {hasUnits && mode === "single" && (
+            <SingleSummary totals={bucketTotals[0]} units={units} />
           )}
 
-          {generating && shipments.length > 1 && (
-            <div className="progress" aria-hidden="true">
-              <div
-                className="progress__bar"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
+          {hasUnits && mode === "multi" && (
+            <MultiAssignment
+              units={units}
+              count={count}
+              assignments={assignments}
+              bucketTotals={bucketTotals}
+              shipmentResults={shipmentResults}
+              currentIndex={currentIndex}
+              disabled={generating}
+              onAssign={assignUnit}
+            />
           )}
-
-          {loadingExisting && isDealMulti && (
-            <div className="deals-list__state">Cargando guías existentes…</div>
-          )}
-
-          {!loadingExisting &&
-            shipments.map((draft, index) => (
-              <DraftCard
-                key={index}
-                index={index}
-                total={shipments.length}
-                draft={draft}
-                errors={perDraftErrors[index]}
-                isFocused={index === 0}
-                firstInputRef={index === 0 ? firstInputRef : null}
-                isCurrent={currentIndex === index}
-                disabled={generating || draft.status === "ok"}
-                onChange={(patch) => updateDraft(index, patch)}
-                showStatus={mode === "multi"}
-              />
-            ))}
 
           {globalError && (
             <div className="alert alert--err" role="alert">
               {globalError.message}
-            </div>
-          )}
-
-          {hasFailures && !generating && (
-            <div className="alert alert--err" role="alert">
-              {okCount} de {shipments.length} guías generadas. {errorCount} con
-              error. Revisa el mensaje en cada guía y reintenta.
-            </div>
-          )}
-
-          {allOk && mode === "multi" && !generating && (
-            <div className="alert alert--ok" role="status">
-              {okCount} guías generadas correctamente.
             </div>
           )}
         </div>
@@ -522,27 +410,20 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
             onClick={onClose}
             disabled={generating}
           >
-            {allOk ? "Cerrar" : "Cancelar"}
+            Cancelar
           </button>
           <button
             type="button"
             className="btn btn--success btn--sm"
             onClick={handleSubmit}
-            disabled={!allValid || generating || allOk}
+            disabled={!canGenerate}
           >
             {generating ? (
               <>
                 <span className="spinner spinner--sm" aria-hidden="true" />
                 {mode === "multi"
-                  ? `Generando ${(currentIndex ?? 0) + 1} de ${shipments.length}…`
+                  ? `Generando ${(currentIndex ?? 0) + 1} de ${count}…`
                   : "Generando…"}
-              </>
-            ) : hasFailures ? (
-              <>
-                <span className="btn__icon" aria-hidden="true">
-                  🔄
-                </span>
-                Reintentar fallidas
               </>
             ) : (
               <>
@@ -550,7 +431,7 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
                   📦
                 </span>
                 {mode === "multi"
-                  ? `Generar ${shipments.length} guías`
+                  ? `Generar ${count} guías`
                   : "Generar guía"}
               </>
             )}
@@ -561,135 +442,174 @@ export default function GenerateGuideModal({ deal, isOpen, onClose, onGenerated 
   );
 }
 
-function DraftCard({
-  index,
-  total,
-  draft,
-  errors,
-  firstInputRef,
-  isCurrent,
+function SingleSummary({ totals, units }) {
+  return (
+    <div className="single-summary">
+      <div className="single-summary__head">
+        <strong>{units.length}</strong>{" "}
+        cuadro{units.length === 1 ? "" : "s"} en una sola guía
+      </div>
+      <ul className="cuadro-list">
+        {units.map((u) => (
+          <li key={u.key} className="cuadro-list__item">
+            <span className="cuadro-list__name">{u.name}</span>
+            <span className="cuadro-list__dims">
+              {u.base}×{u.altura} cm
+              {u.unitsInRow > 1 && (
+                <span className="cuadro-list__unit">
+                  {" "}
+                  · u{u.unitIndex}/{u.unitsInRow}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <TotalsRow totals={totals} />
+    </div>
+  );
+}
+
+function MultiAssignment({
+  units,
+  count,
+  assignments,
+  bucketTotals,
+  shipmentResults,
+  currentIndex,
   disabled,
-  onChange,
-  showStatus,
+  onAssign,
 }) {
-  const setField = (key, value) => onChange({ [key]: value });
+  const buckets = [];
+  for (let i = 0; i < count; i += 1) {
+    buckets.push({ idx: i, units: unitsForBucket(units, assignments, i) });
+  }
+  const unassigned = units.filter((u) => assignments[u.key] === UNASSIGNED);
 
   return (
-    <div
-      className={`shipment-draft${isCurrent ? " is-current" : ""}${draft.status === "ok" ? " is-ok" : ""}${draft.status === "error" ? " is-error" : ""}`}
-    >
-      {showStatus && (
-        <div className="shipment-draft__head">
-          <span className="shipment-draft__index">
-            Guía {index + 1} de {total}
-          </span>
-          <span className={`shipment-draft__status is-${draft.status}`}>
-            {draft.status === "ok" && "✓ Generada"}
-            {draft.status === "error" && "✗ Error"}
-            {draft.status === "creating" && "Creando…"}
-            {draft.status === "generating" && "Generando…"}
-            {draft.status === "draft" && "Pendiente"}
-          </span>
+    <div className="bucket-board">
+      {unassigned.length > 0 && (
+        <div className="bucket bucket--unassigned">
+          <div className="bucket__head">
+            <span>Sin asignar</span>
+            <span className="bucket__count">
+              {unassigned.length} cuadro{unassigned.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <ul className="cuadro-list">
+            {unassigned.map((u) => (
+              <UnitRow
+                key={u.key}
+                unit={u}
+                bucket={UNASSIGNED}
+                bucketCount={count}
+                disabled={disabled}
+                onAssign={onAssign}
+              />
+            ))}
+          </ul>
         </div>
       )}
-      <div className="shipment-draft__grid">
-        <label className="field field--stacked">
-          <span>Peso (kg)</span>
-          <input
-            ref={firstInputRef}
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.weight}
-            onChange={(e) => setField("weight", e.target.value)}
-            disabled={disabled}
-          />
-          {errors.weight && (
-            <span className="field__error">{errors.weight}</span>
-          )}
-        </label>
-        <label className="field field--stacked">
-          <span>Largo (cm)</span>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={draft.length}
-            onChange={(e) => setField("length", e.target.value)}
-            disabled={disabled}
-          />
-          {errors.length && (
-            <span className="field__error">{errors.length}</span>
-          )}
-        </label>
-        <label className="field field--stacked">
-          <span>Ancho (cm)</span>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={draft.width}
-            onChange={(e) => setField("width", e.target.value)}
-            disabled={disabled}
-          />
-          {errors.width && (
-            <span className="field__error">{errors.width}</span>
-          )}
-        </label>
-        <label className="field field--stacked">
-          <span>Alto (cm)</span>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={draft.height}
-            onChange={(e) => setField("height", e.target.value)}
-            disabled={disabled}
-          />
-          {errors.height && (
-            <span className="field__error">{errors.height}</span>
-          )}
-        </label>
-        <label className="field field--stacked">
-          <span>Valor declarado (MXN)</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.declaredValue}
-            onChange={(e) => setField("declaredValue", e.target.value)}
-            disabled={disabled}
-            placeholder="Opcional"
-          />
-        </label>
-      </div>
-      <label className="field field--stacked shipment-draft__full">
-        <span>Contenido del paquete</span>
-        <textarea
-          rows={2}
-          value={draft.description}
-          onChange={(e) => setField("description", e.target.value)}
-          disabled={disabled}
-          placeholder={
-            total > 1
-              ? `Ej. Caja ${index + 1}: cuadros enmarcados`
-              : "Ej. Cuadro enmarcado 30x40 cm"
-          }
-        />
-        {errors.description && (
-          <span className="field__error">{errors.description}</span>
+
+      {buckets.map(({ idx, units: bucketUnits }) => {
+        const result = shipmentResults[idx];
+        const isCurrent = currentIndex === idx;
+        const cls = [
+          "bucket",
+          isCurrent ? "is-current" : null,
+          result?.status === "ok" ? "is-ok" : null,
+          result?.status === "error" ? "is-error" : null,
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return (
+          <div key={idx} className={cls}>
+            <div className="bucket__head">
+              <span>Guía {idx + 1}</span>
+              {result?.status === "ok" && (
+                <span className="bucket__status is-ok">✓ Generada</span>
+              )}
+              {result?.status === "error" && (
+                <span className="bucket__status is-error">✗ Error</span>
+              )}
+              {isCurrent && !result && (
+                <span className="bucket__status is-creating">Generando…</span>
+              )}
+            </div>
+            {bucketUnits.length === 0 ? (
+              <div className="bucket__empty">Sin cuadros asignados</div>
+            ) : (
+              <>
+                <ul className="cuadro-list">
+                  {bucketUnits.map((u) => (
+                    <UnitRow
+                      key={u.key}
+                      unit={u}
+                      bucket={idx}
+                      bucketCount={count}
+                      disabled={disabled}
+                      onAssign={onAssign}
+                    />
+                  ))}
+                </ul>
+                <TotalsRow totals={bucketTotals[idx]} />
+              </>
+            )}
+            {result?.status === "ok" && result.data?.trackingNumber && (
+              <div className="bucket__success">
+                Tracking: <code>{result.data.trackingNumber}</code>
+              </div>
+            )}
+            {result?.status === "error" && (
+              <div className="bucket__error">{result.error}</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function UnitRow({ unit, bucket, bucketCount, disabled, onAssign }) {
+  return (
+    <li className="cuadro-list__item">
+      <span className="cuadro-list__name">{unit.name}</span>
+      <span className="cuadro-list__dims">
+        {unit.base}×{unit.altura} cm
+        {unit.unitsInRow > 1 && (
+          <span className="cuadro-list__unit">
+            {" "}
+            · u{unit.unitIndex}/{unit.unitsInRow}
+          </span>
         )}
-      </label>
-      {draft.status === "error" && draft.errorMsg && (
-        <div className="shipment-draft__error" role="alert">
-          {draft.errorMsg}
-        </div>
-      )}
-      {draft.status === "ok" && draft.result?.trackingNumber && (
-        <div className="shipment-draft__success">
-          Tracking: <code>{draft.result.trackingNumber}</code>
-        </div>
-      )}
+      </span>
+      <select
+        className="cuadro-list__select"
+        value={bucket}
+        onChange={(e) => onAssign(unit.key, Number(e.target.value))}
+        disabled={disabled}
+      >
+        <option value={UNASSIGNED}>Sin asignar</option>
+        {Array.from({ length: bucketCount }).map((_, i) => (
+          <option key={i} value={i}>
+            Guía {i + 1}
+          </option>
+        ))}
+      </select>
+    </li>
+  );
+}
+
+function TotalsRow({ totals }) {
+  return (
+    <div className="totals-row" aria-label="Totales calculados">
+      <span>
+        <strong>{totals.weight}</strong> kg
+      </span>
+      <span>
+        <strong>{totals.length}</strong>×<strong>{totals.width}</strong>×
+        <strong>{totals.height}</strong> cm
+      </span>
     </div>
   );
 }

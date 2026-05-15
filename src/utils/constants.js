@@ -6,6 +6,29 @@ export const MODULES = {
 
 export const MAX_SHIPMENTS_PER_DEAL = 10;
 
+// Subform Cuadros_Orden on Deals. Each row is a piece quoted for this order.
+export const CUADRO_FIELDS = {
+  ID: "id",
+  PARENT_ID: "Parent_Id",
+  BASE_CM: "Base_cm",
+  ALTURA_CM: "Altura_cm",
+  CANTIDAD: "Cantidad",
+  NUMERO_DE_DISENO: "Numero_de_Diseno",
+  MATERIAL: "Material",
+  PRODUCT: "Product",
+  ES_PERSONALIZADO: "Es_Personalizado",
+  NOTAS: "Notas",
+  PRECIO_UNITARIO: "Precio_Unitario",
+  INTEGRANTES_NOMBRES: "Integrantes_Nombres",
+};
+
+export const CUADROS_SUBFORM = "Cuadros_Orden";
+
+// Each cuadro is 5 cm thick. Volumetric weight uses the standard
+// (base × altura × profundidad) / 5000 carrier formula.
+export const PROFUNDIDAD_CM_PER_CUADRO = 5;
+export const VOLUMETRIC_DIVISOR = 5000;
+
 export const DEAL_FIELDS = {
   ID: "id",
   NAME: "Deal_Name",
