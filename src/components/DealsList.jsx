@@ -12,6 +12,7 @@ import {
   formatDate,
   formatDateTime,
   formatStageOrPlaceholder,
+  shipmentCountLabel,
   shipmentStatusLabel,
   shipmentStatusModifier,
   trackingUrlFor,
@@ -21,6 +22,7 @@ import {
   normalizeError,
 } from "../utils/zohoApi";
 import GenerateGuideModal from "./GenerateGuideModal";
+import ShipmentsViewModal from "./ShipmentsViewModal";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "", label: "Todos los estatus" },
@@ -66,6 +68,15 @@ function dealHasGuide(deal) {
   );
 }
 
+function dealGuidesCount(deal) {
+  const n = Number(deal?.[DEAL_FIELDS.TOTAL_GUIAS]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function dealIsMulti(deal) {
+  return dealGuidesCount(deal) > 1;
+}
+
 function dealSubline(deal) {
   const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
   const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
@@ -90,9 +101,11 @@ function DealActions({
   onGenerate,
   onTrack,
   onDownload,
+  onViewShipments,
 }) {
   const id = deal[DEAL_FIELDS.ID];
   const hasGuide = dealHasGuide(deal);
+  const isMulti = dealIsMulti(deal);
   const labelUrl = deal[DEAL_FIELDS.ENVIA_LABEL_URL];
   const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
   const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
@@ -105,7 +118,7 @@ function DealActions({
   const isGenerating = generatingId === id;
   const generationLocked = Boolean(generatingId);
 
-  if (!hasGuide) {
+  if (!hasGuide && !isMulti) {
     return (
       <button
         type="button"
@@ -122,6 +135,38 @@ function DealActions({
         )}
         {isGenerating ? "Generando…" : "Generar guía"}
       </button>
+    );
+  }
+
+  if (isMulti) {
+    return (
+      <>
+        <button
+          type="button"
+          className="btn btn--info btn--sm"
+          onClick={() => onViewShipments(deal)}
+        >
+          <span className="btn__icon" aria-hidden="true">
+            📦
+          </span>
+          Ver guías
+        </button>
+        <button
+          type="button"
+          className="btn btn--warn btn--sm"
+          onClick={() => onGenerate(deal)}
+          disabled={isGenerating || generationLocked}
+        >
+          {isGenerating ? (
+            <span className="spinner spinner--sm" aria-hidden="true" />
+          ) : (
+            <span className="btn__icon" aria-hidden="true">
+              🔄
+            </span>
+          )}
+          {isGenerating ? "Generando…" : "Regenerar guías"}
+        </button>
+      </>
     );
   }
 
@@ -200,8 +245,11 @@ function DealRow({ deal, isCurrent, actionsProps }) {
   const estado = deal[DEAL_FIELDS.ESTADO];
   const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
   const hasGuide = dealHasGuide(deal);
-  const subline = dealSubline(deal);
-  const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide);
+  const isMulti = dealIsMulti(deal);
+  const guidesCount = dealGuidesCount(deal);
+  const countLabel = shipmentCountLabel(guidesCount);
+  const subline = isMulti ? null : dealSubline(deal);
+  const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide || isMulti);
   const rowClass = [isCurrent ? "is-current" : null, dateClass]
     .filter(Boolean)
     .join(" ");
@@ -218,9 +266,14 @@ function DealRow({ deal, isCurrent, actionsProps }) {
       <td>{destino}</td>
       <td>{formatDateTime(deal[DEAL_FIELDS.FECHA_Y_HORA])}</td>
       <td>
-        <span className={`pill ${shipmentStatusModifier(status)}`}>
-          {shipmentStatusLabel(status)}
-        </span>
+        <div className="deals-list__pills">
+          <span className={`pill ${shipmentStatusModifier(status)}`}>
+            {shipmentStatusLabel(status)}
+          </span>
+          {countLabel && (
+            <span className="pill pill--count">📦 {countLabel}</span>
+          )}
+        </div>
       </td>
       <td>{formatDate(deal[DEAL_FIELDS.MODIFIED_TIME])}</td>
       <td className="deals-list__actions">
@@ -244,8 +297,11 @@ function DealCard({
   const estado = deal[DEAL_FIELDS.ESTADO];
   const destino = [ciudad, estado].filter(Boolean).join(", ") || "—";
   const hasGuide = dealHasGuide(deal);
-  const subline = dealSubline(deal);
-  const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide);
+  const isMulti = dealIsMulti(deal);
+  const guidesCount = dealGuidesCount(deal);
+  const countLabel = shipmentCountLabel(guidesCount);
+  const subline = isMulti ? null : dealSubline(deal);
+  const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide || isMulti);
   const cardClass = [
     "deals-list__card",
     isCurrent ? "is-current" : null,
@@ -259,9 +315,14 @@ function DealCard({
         <div className="deals-list__name">
           {deal[DEAL_FIELDS.NAME] || "(Sin nombre)"}
         </div>
-        <span className={`pill ${shipmentStatusModifier(status)}`}>
-          {shipmentStatusLabel(status)}
-        </span>
+        <div className="deals-list__pills">
+          <span className={`pill ${shipmentStatusModifier(status)}`}>
+            {shipmentStatusLabel(status)}
+          </span>
+          {countLabel && (
+            <span className="pill pill--count">📦 {countLabel}</span>
+          )}
+        </div>
       </div>
       {subline && <div className="deals-list__sub">{subline}</div>}
       <div className="deals-list__card-actions">
@@ -348,6 +409,7 @@ export default function DealsList({ initialRecordId }) {
   const [downloadingId, setDownloadingId] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [modalDeal, setModalDeal] = useState(null);
+  const [viewShipmentsDeal, setViewShipmentsDeal] = useState(null);
   const trackingUrlCache = useRef(new Map());
 
   const toggleExpand = (id) => {
@@ -473,6 +535,7 @@ export default function DealsList({ initialRecordId }) {
     onGenerate: handleOpenGenerateModal,
     onTrack: handleTrack,
     onDownload: handleDownloadPdf,
+    onViewShipments: setViewShipmentsDeal,
   };
 
   const isEmpty = !loading && deals.length === 0;
@@ -685,6 +748,12 @@ export default function DealsList({ initialRecordId }) {
         isOpen={Boolean(modalDeal)}
         onClose={handleCloseModal}
         onGenerated={handleAfterGenerated}
+      />
+
+      <ShipmentsViewModal
+        deal={viewShipmentsDeal}
+        isOpen={Boolean(viewShipmentsDeal)}
+        onClose={() => setViewShipmentsDeal(null)}
       />
     </div>
   );

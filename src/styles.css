@@ -252,6 +252,12 @@ body {
   color: var(--muted);
 }
 
+.pill--count {
+  background: #e6efff;
+  color: var(--info);
+  font-weight: 700;
+}
+
 /* Deals list */
 
 .deals-list {
@@ -958,6 +964,75 @@ body {
   color: var(--danger);
   font-size: 11px;
   margin-top: 2px;
+}
+
+.deals-list__pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.shipment-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.shipment-item:last-child {
+  margin-bottom: 0;
+}
+
+.shipment-item__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.shipment-item__index {
+  font-weight: 700;
+  color: var(--brand);
+  font-size: 13px;
+}
+
+.shipment-item__desc {
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.shipment-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.shipment-item__meta code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--ink);
+}
+
+.shipment-item__error {
+  padding: 6px 8px;
+  background: #fbeaea;
+  color: var(--danger);
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+}
+
+.shipment-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 @media (max-width: 480px) {
