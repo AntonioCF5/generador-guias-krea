@@ -6,7 +6,7 @@ import {
 } from "../utils/zohoApi";
 import { DEAL_FIELDS, DEALS_LIST_PAGE_SIZE, MODULES } from "../utils/constants";
 
-const COQL_FIELDS = [
+const BASE_COQL_FIELDS = [
   DEAL_FIELDS.ID,
   DEAL_FIELDS.NAME,
   DEAL_FIELDS.STAGE,
@@ -21,8 +21,23 @@ const COQL_FIELDS = [
   DEAL_FIELDS.ENVIA_TRACKING_NUMBER,
   DEAL_FIELDS.ENVIA_CARRIER,
   DEAL_FIELDS.ENVIA_LABEL_URL,
-  DEAL_FIELDS.TOTAL_GUIAS,
 ];
+
+// Fields that may not exist yet in older Zoho setups. If COQL rejects
+// any of them with "column ... invalid", we drop the whole optional
+// group for the rest of the session and keep the list working.
+const OPTIONAL_COQL_FIELDS = [DEAL_FIELDS.TOTAL_GUIAS];
+
+let optionalFieldsDisabled = false;
+
+function isInvalidColumnError(err) {
+  const msg = String(err?.message || err?.details?.message || "").toLowerCase();
+  return (
+    msg.includes("column given seems to be invalid") ||
+    msg.includes("invalid_query") ||
+    msg.includes("invalid column")
+  );
+}
 
 function escapeLiteral(value) {
   return String(value).replace(/'/g, "\\'");
@@ -48,8 +63,12 @@ function buildQuery({
     );
   }
 
+  const fields = optionalFieldsDisabled
+    ? BASE_COQL_FIELDS
+    : [...BASE_COQL_FIELDS, ...OPTIONAL_COQL_FIELDS];
+
   return [
-    `SELECT ${COQL_FIELDS.join(", ")}`,
+    `SELECT ${fields.join(", ")}`,
     `FROM ${MODULES.DEALS}`,
     `WHERE ${conditions.join(" AND ")}`,
     `ORDER BY ${DEAL_FIELDS.MODIFIED_TIME} DESC`,
@@ -80,9 +99,25 @@ export default function useDealsList() {
       while (offset < COQL_MAX_RECORDS) {
         const remaining = COQL_MAX_RECORDS - offset;
         const limit = Math.min(COQL_FETCH_PAGE_SIZE, remaining);
-        const query = buildQuery({ ...params, limit, offset });
+        let query = buildQuery({ ...params, limit, offset });
         console.log("[DealsList] COQL query:", query);
-        const rows = await searchDealsByCOQL(query);
+        let rows;
+        try {
+          rows = await searchDealsByCOQL(query);
+        } catch (err) {
+          if (!optionalFieldsDisabled && isInvalidColumnError(err)) {
+            console.warn(
+              "[DealsList] Optional COQL fields rejected by Zoho, " +
+                "retrying without them. Create the missing field(s) " +
+                `(${OPTIONAL_COQL_FIELDS.join(", ")}) to enable multi-guide views.`,
+            );
+            optionalFieldsDisabled = true;
+            query = buildQuery({ ...params, limit, offset });
+            rows = await searchDealsByCOQL(query);
+          } else {
+            throw err;
+          }
+        }
         collected.push(...rows);
         if (rows.length < limit) break;
         offset += rows.length;
