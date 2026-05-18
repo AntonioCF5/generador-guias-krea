@@ -31,11 +31,14 @@ guías", "Ver guías" view).
 
 ---
 
-## 1. New field on `Deals`
+## 1. New fields on `Deals`
 
-| Field label | API name | Tipo | Default |
-|---|---|---|---|
-| Total Guías | `Total_Guias` | Integer | 0 |
+| Field label | API name | Tipo | Default | Propósito |
+|---|---|---|---|---|
+| Total Guías | `Total_Guias` | Integer | 0 | Counter for multi-guide deals |
+| Entrega estimada | `Envia_Estimated_Delivery` | **Date** | empty | ETA returned by Envia (mirror of shipment #1) |
+
+### `Total_Guias`
 
 The widget writes this number after a multi-guide batch ends. The list
 branches on it:
@@ -47,6 +50,18 @@ branches on it:
 
 A Deal that only has a single guide keeps `Total_Guias = 0` — the
 legacy `Envia_*` fields on the Deal still hold the data.
+
+### `Envia_Estimated_Delivery`
+
+Populated by Deluge (see §3 / §4) when Envia's response includes a
+`deliveryDate.date`. It is **optional per carrier** — some carriers
+return it, others don't. Type must be **Date** (not DateTime): the
+underlying Envia value is a calendar day (`YYYY-MM-DD`).
+
+The Deal-level field mirrors **shipment #1** for the same reason
+`Numero_de_Guia` mirrors it (keeps the legacy list / stats / cache
+working). Multi-guide deals store the per-shipment ETA in the
+`Envia_Shipments` child records (§2).
 
 ---
 
@@ -81,6 +96,7 @@ them verbatim):
 | `Envia_Label_Generated_At` | Date/Time | no | |
 | `Envia_Shipment_Status` | Picklist | no | Use the same values as `Deals.Envia_Shipment_Status` (`Pendiente`, `Picked Up`, `Shipped`, `Out for Delivery`, `Delivered`, `Address error`) |
 | `Envia_Shipping_Cost` | Currency (MXN) | no | |
+| `Envia_Estimated_Delivery` | **Date** | no | ETA from Envia (see §3). Optional per carrier. |
 | `Last_Error` | Multi Line | no | Last failure message — surfaced in the "Ver guías" modal |
 
 Grant the relevant **profile permissions** to read/write the new module
@@ -103,9 +119,15 @@ The function:
 5. On success:
    - Writes label / tracking / carrier / status into the shipment
      record.
-   - If `Shipment_Index == 1`, **mirrors** the same fields onto the
-     parent Deal so the existing list, COQL queries and stats keep
-     working.
+   - **Best-effort** extraction of `deliveryDate.date` (Envia ETA) and
+     persists it into `Envia_Estimated_Delivery`. If the carrier did
+     not return it, the field stays empty — generation does NOT fail.
+   - If `Shipment_Index == 1`, **mirrors** the same fields (incl. the
+     ETA) onto the parent Deal so the existing list, COQL queries and
+     stats keep working.
+   - Logs the raw `label[0]` payload at `info` level (temporary — see
+     §5 "Validating which carriers return ETA"). Remove the log line
+     once we've confirmed which carriers populate `deliveryDate`.
 6. On failure:
    - Writes `Last_Error` + `Envia_Shipment_Status = "Address error"`
      into the shipment record.
@@ -146,6 +168,13 @@ response = invokeurl
 if (response.get("data") != null && response.get("data").get("label") != null)
 {
   out = response.get("data").get("label").get(0);
+
+  // ── TEMP LOG (remove after validating ETA contract per carrier, §5) ──
+  // Inspect the raw label payload so we can confirm which fields each
+  // carrier returns (deliveryDate / deliveryEstimate / etc.).
+  info "envia_generate_label_for_shipment label payload: " + out.toString();
+  // ────────────────────────────────────────────────────────────────────
+
   trackingNumber = out.get("trackingNumber");
   labelUrl       = out.get("label");
   carrier        = out.get("carrier");
@@ -154,8 +183,17 @@ if (response.get("data") != null && response.get("data").get("label") != null)
   trackingUrl    = out.get("trackingUrl");
   enviaId        = out.get("shipmentId");
 
+  // Best-effort ETA. The carrier may or may not return deliveryDate.
+  // Never let a missing/invalid value break label generation.
+  estimatedDelivery = null;
+  deliveryDateObj = out.get("deliveryDate");
+  if (deliveryDateObj != null)
+  {
+    estimatedDelivery = deliveryDateObj.get("date");   // "YYYY-MM-DD"
+  }
+
   // 1) Update the child shipment record (always)
-  zoho.crm.updateRecord("Envia_Shipments", shipmentId.toLong(), {
+  shipmentUpdate = {
     "Envia_Shipment_ID": enviaId,
     "Numero_de_Guia": trackingNumber,
     "Paqueteria": carrier,
@@ -166,12 +204,17 @@ if (response.get("data") != null && response.get("data").get("label") != null)
     "Envia_Shipment_Status": "Pendiente",
     "Envia_Shipping_Cost": totalPrice,
     "Last_Error": ""
-  });
+  };
+  if (estimatedDelivery != null)
+  {
+    shipmentUpdate.put("Envia_Estimated_Delivery", estimatedDelivery);
+  }
+  zoho.crm.updateRecord("Envia_Shipments", shipmentId.toLong(), shipmentUpdate);
 
   // 2) Mirror to Deal only if this is the primary shipment
   if (shipment.get("Shipment_Index") == 1)
   {
-    zoho.crm.updateRecord("Deals", dealId.toLong(), {
+    dealUpdate = {
       "Envia_Shipment_ID": enviaId,
       "Numero_de_Guia": trackingNumber,
       "Paqueteria": carrier,
@@ -182,7 +225,12 @@ if (response.get("data") != null && response.get("data").get("label") != null)
       "Envia_Shipment_Status": "Pendiente",
       "Envia_Shipping_Cost": totalPrice
       // NOTE: Total_Guias is written by the widget at the end of the batch.
-    });
+    };
+    if (estimatedDelivery != null)
+    {
+      dealUpdate.put("Envia_Estimated_Delivery", estimatedDelivery);
+    }
+    zoho.crm.updateRecord("Deals", dealId.toLong(), dealUpdate);
   }
 
   return {"ok": true, "data": {
@@ -191,7 +239,8 @@ if (response.get("data") != null && response.get("data").get("label") != null)
     "labelUrl": labelUrl,
     "carrier": carrier,
     "service": service,
-    "totalPrice": totalPrice
+    "totalPrice": totalPrice,
+    "estimatedDelivery": estimatedDelivery
   }, "error": null}.toString();
 }
 else
@@ -205,12 +254,85 @@ else
 }
 ```
 
-`envia_generate_label(dealId)` is **not modified** — it stays as the
-entry point for the single-guide flow.
+---
+
+## 4. Update `envia_generate_label(dealId)` (single-guide flow)
+
+The single-guide function keeps its signature and call shape (the
+widget still invokes `envia_generate_label({ dealId })`). The only
+change is the same best-effort ETA capture as §3 — extract
+`deliveryDate.date` from the Envia response and persist it into the
+**Deal's** `Envia_Estimated_Delivery` field. No `Envia_Shipments`
+record is involved in this flow.
+
+Insert the following diff after you parse `data.label[0]`:
+
+```deluge
+out = response.get("data").get("label").get(0);
+
+// ── TEMP LOG (remove after §5 validation) ──
+info "envia_generate_label label payload: " + out.toString();
+// ───────────────────────────────────────────
+
+// existing field extraction (trackingNumber, labelUrl, carrier, ...)
+
+// NEW: best-effort ETA
+estimatedDelivery = null;
+deliveryDateObj = out.get("deliveryDate");
+if (deliveryDateObj != null)
+{
+  estimatedDelivery = deliveryDateObj.get("date");
+}
+
+// existing dealUpdate map ...
+if (estimatedDelivery != null)
+{
+  dealUpdate.put("Envia_Estimated_Delivery", estimatedDelivery);
+}
+zoho.crm.updateRecord("Deals", dealId.toLong(), dealUpdate);
+```
+
+Return envelope: optionally include `estimatedDelivery` in the `data`
+object so the widget can read it without re-fetching, but the widget
+in Fase 1 ignores it (UI lands in Fase 2).
 
 ---
 
-## 4. End-to-end verification checklist
+## 5. Validating which carriers return ETA
+
+Both Deluge functions log the raw `label[0]` payload at `info` level.
+Generate **at least one real guide per carrier** the operation uses
+(FedEx, DHL, Estafeta, Paquetexpress, Redpack, etc.) and inspect the
+log via **Setup → Developer Hub → Functions → [function] → Audit Log**
+or `Application Logs`.
+
+For each carrier, record:
+
+| Carrier | `deliveryDate` present? | `deliveryDate.date` value | `deliveryEstimate` string |
+|---|---|---|---|
+| fedex | ? | ? | ? |
+| dhl | ? | ? | ? |
+| estafeta | ? | ? | ? |
+| paquetexpress | ? | ? | ? |
+| redpack | ? | ? | ? |
+| 99minutos | ? | ? | ? |
+
+**Decision after one week of real traffic:**
+
+- If **most carriers** return `deliveryDate.date` → ship Fase 2 (UI)
+  as-is. Carriers that don't return it will show "Entrega estimada no
+  disponible" in the widget.
+- If **few carriers** return it → before Fase 2, add a fallback call
+  to `https://api.envia.com/tracking` (Fase 1b — not implemented yet)
+  to enrich the ETA from the tracking endpoint right after generation.
+
+**Remove the `info` log lines** from both Deluge functions once the
+table above is filled in. They are intentionally marked with the
+`TEMP LOG` comment so they're easy to grep for.
+
+---
+
+## 6. End-to-end verification checklist
 
 1. Open a Deal **without** any guide.
 2. Click **Generar guía** → modal opens with the package fields
@@ -232,3 +354,14 @@ entry point for the single-guide flow.
 10. Click **Regenerar guías** → modal opens preloaded with the 3
     drafts. Adjust if needed, hit **Generar** → existing records are
     overwritten (same Zoho record IDs, new Envia labels).
+
+### ETA verification (Fase 1)
+
+11. Open the Deal generated in step 2 in Zoho. If the carrier
+    returned `deliveryDate.date`, the field **Envia_Estimated_Delivery**
+    has a date; otherwise it is empty (this is OK — see §5).
+12. Open the 3 shipments from step 7. Each one independently has its
+    own `Envia_Estimated_Delivery` (or empty per carrier).
+13. Open **Audit Log** for both Deluge functions and verify the
+    `TEMP LOG` entries are being written with the raw payload. Use
+    them to fill the carrier table in §5.
