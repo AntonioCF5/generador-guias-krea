@@ -31,6 +31,36 @@ guías", "Ver guías" view).
 
 ---
 
+## ETA principles (read first)
+
+`Envia_Estimated_Delivery` is **only ever populated from a real value
+returned by Envia / the carrier**. The Deluge functions never
+fabricate dates — no "now + 3 days" fallback, no calculation based on
+service tier, no inference from `Closing_Date`.
+
+Hierarchy of allowed sources, in order:
+
+1. `data.label[0].deliveryDate.date` from `/ship/generate` (Fase 1,
+   implemented below).
+2. The Envia tracking endpoint, called after generation only if (1)
+   was null (Fase 1b — not implemented yet, decision in §5).
+3. `data.label[0].deliveryEstimate` string ("1-2 days") — currently
+   discarded, but could be persisted to a separate text field later
+   if we want to show ranges when no concrete date is available.
+
+If none of the above returns a value, the field stays empty and the
+widget will render "Entrega estimada no disponible". This is by
+design: better to show "unknown" than to mislead the customer with a
+fabricated date that ignores carrier, service, destination, weekends
+and pickup timing.
+
+A future enhancement could add a **visual** approximation by service
+tier (express vs ground) **clearly labeled as such** in the UI, but
+that value must never be written back to `Envia_Estimated_Delivery`
+— that field is reserved for carrier-truthful data.
+
+---
+
 ## 1. New fields on `Deals`
 
 | Field label | API name | Tipo | Default | Propósito |
