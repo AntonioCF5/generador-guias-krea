@@ -26,7 +26,10 @@ const BASE_COQL_FIELDS = [
 // Fields that may not exist yet in older Zoho setups. If COQL rejects
 // any of them with "column ... invalid", we drop the whole optional
 // group for the rest of the session and keep the list working.
-const OPTIONAL_COQL_FIELDS = [DEAL_FIELDS.TOTAL_GUIAS];
+const OPTIONAL_COQL_FIELDS = [
+  DEAL_FIELDS.TOTAL_GUIAS,
+  DEAL_FIELDS.FECHA_ESTIMADA_DE_ENTREGA,
+];
 
 let optionalFieldsDisabled = false;
 

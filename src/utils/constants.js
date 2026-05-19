@@ -72,6 +72,10 @@ export const DEAL_FIELDS = {
 
   // Counter for multi-guide deals. >1 activates the multi view in the list.
   TOTAL_GUIAS: "Total_Guias",
+
+  // ETA captured by an external Zoho flow (workflow / capture / Deluge).
+  // Read-only from the widget's POV — we only display it.
+  FECHA_ESTIMADA_DE_ENTREGA: "Fecha_Estimada_de_Entrega",
 };
 
 export const SHIPMENT_FIELDS = {

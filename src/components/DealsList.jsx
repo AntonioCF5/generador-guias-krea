@@ -77,12 +77,22 @@ function dealIsMulti(deal) {
   return dealGuidesCount(deal) > 1;
 }
 
-function dealSubline(deal) {
+function dealSublineFor(deal, isMulti) {
+  const eta = deal[DEAL_FIELDS.FECHA_ESTIMADA_DE_ENTREGA];
+  const etaPart = eta ? `Entrega estimada: ${formatDate(eta)}` : null;
+
+  // In multi mode, carrier/tracking on the Deal only reflect shipment #1
+  // — showing them on the deal row would be misleading. Per-shipment data
+  // lives in the "Ver guías" modal. We still surface the deal-level ETA
+  // because it's a single value associated to the order, not per-package.
+  if (isMulti) return etaPart;
+
   const carrier = deal[DEAL_FIELDS.ENVIA_CARRIER];
   const tracking = deal[DEAL_FIELDS.ENVIA_TRACKING_NUMBER];
   return [
     carrier ? carrierLabel(carrier) : null,
     tracking ? `Tracking: ${tracking}` : null,
+    etaPart,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -248,7 +258,7 @@ function DealRow({ deal, isCurrent, actionsProps }) {
   const isMulti = dealIsMulti(deal);
   const guidesCount = dealGuidesCount(deal);
   const countLabel = shipmentCountLabel(guidesCount);
-  const subline = isMulti ? null : dealSubline(deal);
+  const subline = dealSublineFor(deal, isMulti);
   const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide || isMulti);
   const rowClass = [isCurrent ? "is-current" : null, dateClass]
     .filter(Boolean)
@@ -300,7 +310,7 @@ function DealCard({
   const isMulti = dealIsMulti(deal);
   const guidesCount = dealGuidesCount(deal);
   const countLabel = shipmentCountLabel(guidesCount);
-  const subline = isMulti ? null : dealSubline(deal);
+  const subline = dealSublineFor(deal, isMulti);
   const dateClass = rowDateClass(deal[DEAL_FIELDS.FECHA_Y_HORA], hasGuide || isMulti);
   const cardClass = [
     "deals-list__card",
